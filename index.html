@@ -1,0 +1,469 @@
+<title>Дашборд руководства — еженедельные показатели</title>
+<style>
+:root{
+  color-scheme: light;
+  --bg:#F3F4F1; --surface:#FFFFFF; --surface-2:#ECEEEA; --surface-3:#E3E6E1;
+  --ink:#14181A; --ink-2:#4B534E; --ink-muted:#838A83;
+  --border:rgba(20,24,26,0.12); --border-strong:rgba(20,24,26,0.22);
+  --accent:#2a78d6; --accent-ink:#ffffff;
+  --good:#0ca30c; --warning:#c98500; --critical:#d03b3b;
+  --radius:10px; --radius-sm:6px;
+  --font-ui: system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono: ui-monospace,"Cascadia Mono","Consolas","SFMono-Regular",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#12161A; --surface:#1A2024; --surface-2:#202830; --surface-3:#242C34;
+    --ink:#ECEFEC; --ink-2:#A9B2AC; --ink-muted:#7C8680;
+    --border:rgba(255,255,255,0.12); --border-strong:rgba(255,255,255,0.22);
+    --accent:#3987e5; --accent-ink:#08131f;
+    --good:#0ca30c; --warning:#c98500; --critical:#d03b3b;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#12161A; --surface:#1A2024; --surface-2:#202830; --surface-3:#242C34;
+  --ink:#ECEFEC; --ink-2:#A9B2AC; --ink-muted:#7C8680;
+  --border:rgba(255,255,255,0.12); --border-strong:rgba(255,255,255,0.22);
+  --accent:#3987e5; --accent-ink:#08131f;
+  --good:#0ca30c; --warning:#c98500; --critical:#d03b3b;
+}
+:root[data-theme="light"]{
+  color-scheme: light;
+  --bg:#F3F4F1; --surface:#FFFFFF; --surface-2:#ECEEEA; --surface-3:#E3E6E1;
+  --ink:#14181A; --ink-2:#4B534E; --ink-muted:#838A83;
+  --border:rgba(20,24,26,0.12); --border-strong:rgba(20,24,26,0.22);
+  --accent:#2a78d6; --accent-ink:#ffffff;
+  --good:#0ca30c; --warning:#c98500; --critical:#d03b3b;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-ui);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;}
+h1,h2,h3{text-wrap:balance;margin:0;}
+.app{max-width:1200px;margin:0 auto;padding:28px 24px 80px;}
+header.top{margin-bottom:20px;}
+header.top h1{font-size:24px;font-weight:700;letter-spacing:-0.01em;}
+header.top p{margin:6px 0 0;color:var(--ink-2);font-size:13.5px;max-width:80ch;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;}
+.card + .card{margin-top:16px;}
+.card h2{font-size:12px;text-transform:uppercase;letter-spacing:0.07em;color:var(--ink-2);font-weight:700;margin-bottom:14px;}
+.card h2 .hint{text-transform:none;letter-spacing:0;color:var(--ink-muted);font-weight:400;font-size:12px;margin-left:8px;}
+.field-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+.field-row label{color:var(--ink-2);font-size:13px;}
+input[type=number],input[type=text],input[type=date],input[type=email],input[type=password],select{
+  font:inherit;font-family:var(--font-mono);font-size:13.5px;color:var(--ink);
+  background:var(--bg);border:1px solid var(--border-strong);border-radius:var(--radius-sm);
+  padding:6px 9px;font-variant-numeric:tabular-nums;
+}
+input[type=text],select{font-family:var(--font-ui);}
+input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+.btn{appearance:none;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);font:inherit;font-weight:600;font-size:12.5px;padding:7px 13px;border-radius:var(--radius-sm);cursor:pointer;}
+.btn:hover{background:var(--surface-3);}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);}
+.btn.primary:hover{filter:brightness(1.06);}
+.btn.small{padding:4px 9px;font-size:11.5px;}
+.note{font-size:11.5px;color:var(--ink-muted);margin-top:6px;}
+
+/* auth */
+.auth-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:100;padding:20px;}
+.auth-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:10px;box-shadow:0 8px 30px rgba(0,0,0,0.12);}
+.auth-card h1{font-size:19px;font-weight:700;}
+.auth-card p{color:var(--ink-2);font-size:12.5px;margin:0 0 4px;}
+.auth-card input{width:100%;}
+.auth-error{color:var(--critical);font-size:12px;min-height:16px;line-height:1.4;}
+.auth-actions{display:flex;gap:8px;margin-top:2px;}
+.auth-actions .btn{flex:1;}
+.userbar{display:flex;justify-content:flex-end;align-items:center;gap:10px;font-size:12.5px;color:var(--ink-2);margin-bottom:8px;}
+.userbar .email{font-family:var(--font-mono);}
+
+/* KPI tiles */
+.tile-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+@media (max-width:1000px){.tile-grid{grid-template-columns:repeat(2,1fr);}}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:13px 15px;cursor:pointer;transition:border-color .1s;}
+.tile:hover{border-color:var(--border-strong);}
+.tile.open{border-color:var(--accent);}
+.tile.wide{grid-column:span 2;}
+.tile .label{font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-muted);font-weight:600;margin-bottom:6px;}
+.tile .value{font-family:var(--font-mono);font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-0.01em;}
+.tile .sub{font-size:11px;color:var(--ink-muted);margin-top:4px;}
+.tile .rows{display:flex;flex-direction:column;gap:4px;margin-top:6px;}
+.tile .row{display:flex;justify-content:space-between;font-size:11.5px;font-family:var(--font-mono);color:var(--ink-2);border-top:1px dashed var(--border);padding-top:4px;}
+.tile .row:first-child{border-top:none;padding-top:0;}
+
+/* drilldown */
+.drilldown{margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);}
+table.dyn{border-collapse:collapse;width:100%;font-size:12.5px;}
+table.dyn th,table.dyn td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;}
+table.dyn thead th{background:var(--surface-2);color:var(--ink-2);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:0.04em;}
+table.dyn tbody tr:last-child td{border-bottom:none;}
+table.dyn td.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right;}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;}
+.badge.ok{background:color-mix(in srgb, var(--good) 16%, transparent);color:var(--good);}
+.badge.miss{background:color-mix(in srgb, var(--critical) 16%, transparent);color:var(--critical);}
+
+/* entry form */
+.entry-group{margin-bottom:18px;}
+.entry-group h3{font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-2);font-weight:700;margin-bottom:8px;}
+.entry-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;}
+.entry-field{display:flex;flex-direction:column;gap:4px;}
+.entry-field label{font-size:11.5px;color:var(--ink-2);}
+.entry-field input{width:100%;}
+</style>
+
+<div id="authScreen" class="auth-screen">
+  <div class="auth-card">
+    <h1>Дашборд руководства</h1>
+    <p>Вход общий с другими внутренними инструментами компании.</p>
+    <input type="text" id="authEmail" placeholder="Логин (латиницей, без пробелов)" autocomplete="username">
+    <input type="password" id="authPassword" placeholder="Пароль" autocomplete="current-password">
+    <div class="auth-error" id="authError"></div>
+    <div class="auth-actions">
+      <button class="btn primary" id="signInBtn">Войти</button>
+      <button class="btn" id="signUpBtn">Зарегистрироваться</button>
+    </div>
+  </div>
+</div>
+
+<div class="app" id="appRoot" style="display:none;">
+  <header class="top">
+    <div class="userbar">
+      <span class="email" id="userEmail"></span>
+      <button class="btn" id="signOutBtn">Выйти</button>
+    </div>
+    <h1>Дашборд руководства</h1>
+    <p>Еженедельные показатели для планёрки: план/факт по выручке, утилизации, себестоимости и грузообороту — раздельно опалубка (т) и бытовки (шт). Нажмите на плитку, чтобы увидеть, из чего она складывается.</p>
+  </header>
+
+  <div class="card">
+    <h2>Неделя</h2>
+    <div class="field-row">
+      <label for="weekSelect">Показать неделю:</label>
+      <select id="weekSelect"><option value="">— нет сохранённых недель —</option></select>
+      <label for="newWeekDate" style="margin-left:16px;">Новая неделя (дата начала):</label>
+      <input type="date" id="newWeekDate">
+      <button class="btn" id="newWeekBtn">Создать</button>
+    </div>
+    <div class="note" id="weekNote"></div>
+  </div>
+
+  <div id="dashboardArea" style="display:none;">
+    <div class="card">
+      <h2>Показатели недели <span class="hint">кликабельно — план/факт, нажмите на плитку для разбора</span></h2>
+      <div class="tile-grid" id="tileGrid"></div>
+      <div class="drilldown" id="drilldownArea" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Ввод данных за неделю <span class="hint">пока вручную — источники по каждому потоку подключим по мере готовности выгрузок</span></h2>
+      <div id="entryForm"></div>
+      <button class="btn primary" id="saveEntriesBtn" style="margin-top:6px;">Сохранить неделю</button>
+      <div class="note" id="saveStatus"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+"use strict";
+
+const SUPABASE_URL = "https://khzxfhxpcrjshsssghok.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_rrwlI1VXeWmQJ1Zn3YT3Ow_pUK04-ha";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const LOGIN_DOMAIN = '@opalubka.invalid';
+function loginToEmail(login){ return login.trim().toLowerCase().replace(/[^a-z0-9_.-]/g,'') + LOGIN_DOMAIN; }
+function emailToLogin(email){ return (email||'').split('@')[0]; }
+const LOGIN_PATTERN = /^[a-z0-9_.-]{3,}$/i;
+
+const nf0 = new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0});
+const nf1 = new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1});
+function fmtRub(v){ return (v===null||v===undefined||!isFinite(v)) ? '—' : nf0.format(Math.round(v))+' ₽'; }
+function fmtNum(v,unit){ return (v===null||v===undefined||!isFinite(v)) ? '—' : nf1.format(v)+(unit?' '+unit:''); }
+function fmtPct(v){ return (v===null||v===undefined||!isFinite(v)) ? '—' : nf1.format(v)+'%'; }
+
+/* ---------- domain model: единый источник правды для полей ввода и плиток ----------
+   Плитки и форма ввода строятся из одного и того же списка метрик, чтобы не могли
+   разойтись между собой (см. changelog СБ-инструмента: именно такое расхождение уже
+   один раз было багом в другом инструменте). */
+const REVENUE_STREAMS = [
+  {key:'new', label:'Новые клиенты', dept:'Продажи'},
+  {key:'repeat', label:'Повторные сделки', dept:'Продажи (клиентский менеджер)'},
+  {key:'renewal', label:'Продления договоров', dept:'Продажи (клиентский менеджер)'},
+  {key:'collection', label:'Собрано по долгу', dept:'Безопасность'}
+];
+const PRODUCTS = [
+  {key:'opalubka', label:'Опалубка', unit:'т'},
+  {key:'bytovki', label:'Бытовки', unit:'шт'}
+];
+const TURNOVER_STAGES = [
+  {key:'shipped', label:'Отгружено'},
+  {key:'received', label:'Принято (возврат)'},
+  {key:'to_repair', label:'Поступило в ремонт'},
+  {key:'from_repair', label:'Вышло из ремонта'}
+];
+
+function revKey(product, stream, kind){ return 'rev_'+product+'_'+stream+'_'+kind; }
+function utilKey(product, kind){ return 'util_'+product+'_'+kind; }
+function turnKey(product, stage){ return 'turn_'+product+'_'+stage; }
+
+// Список всех вводимых полей — генерируется из справочников выше, а не пишется руками.
+function buildFieldGroups(){
+  const groups = [];
+  PRODUCTS.forEach(p=>{
+    const fields = [];
+    REVENUE_STREAMS.forEach(s=>{
+      fields.push({key:revKey(p.key,s.key,'plan'), label:s.label+' — план', unit:'₽'});
+      fields.push({key:revKey(p.key,s.key,'fact'), label:s.label+' — факт', unit:'₽'});
+    });
+    groups.push({title:'Выручка · '+p.label, fields});
+  });
+  PRODUCTS.forEach(p=>{
+    groups.push({title:'Утилизация · '+p.label, fields:[
+      {key:utilKey(p.key,'paid'), label:'Оплаченные '+(p.unit==='т'?'тонно':'штуко')+'-дни', unit:p.unit+'-дн'},
+      {key:utilKey(p.key,'potential'), label:'Потенциал парка, '+(p.unit==='т'?'тонно':'штуко')+'-дни', unit:p.unit+'-дн'}
+    ]});
+  });
+  PRODUCTS.forEach(p=>{
+    groups.push({title:'Грузооборот · '+p.label, fields: TURNOVER_STAGES.map(t=>({key:turnKey(p.key,t.key), label:t.label, unit:p.unit}))});
+  });
+  groups.push({title:'Человеко-часы и ФОТ', fields:[
+    {key:'labor_hours_shipment', label:'Человеко-часы: приёмка/отгрузка', unit:'ч'},
+    {key:'labor_hours_repair', label:'Человеко-часы: ремонт', unit:'ч'},
+    {key:'labor_fot_shipment', label:'ФОТ смены приёмки/отгрузки за неделю', unit:'₽'},
+    {key:'labor_fot_repair', label:'ФОТ ремонтной бригады за неделю', unit:'₽'}
+  ]});
+  return groups;
+}
+const FIELD_GROUPS = buildFieldGroups();
+const ALL_FIELDS = FIELD_GROUPS.flatMap(g=>g.fields);
+
+/* ---------- state ---------- */
+let weeksList = [];
+let currentWeek = null; // {id, week_start}
+let currentValues = {}; // metric_key -> number
+
+function num(key){ const v = currentValues[key]; return (v===undefined||v===null||v==='') ? null : Number(v); }
+function sum(keys){ return keys.reduce((s,k)=>{ const v=num(k); return s+(v||0); },0); }
+
+/* ---------- auth ---------- */
+const authScreen = document.getElementById('authScreen');
+const appRoot = document.getElementById('appRoot');
+const authEmail = document.getElementById('authEmail');
+const authPassword = document.getElementById('authPassword');
+const authError = document.getElementById('authError');
+const userEmailEl = document.getElementById('userEmail');
+
+document.getElementById('signInBtn').addEventListener('click', async ()=>{
+  authError.textContent='';
+  const login = authEmail.value.trim();
+  if(!LOGIN_PATTERN.test(login)){ authError.textContent='Логин — латиницей, не короче 3 символов.'; return; }
+  const { error } = await sb.auth.signInWithPassword({ email: loginToEmail(login), password: authPassword.value });
+  if(error) authError.textContent = /invalid login/i.test(error.message) ? 'Неверный логин или пароль.' : error.message;
+});
+document.getElementById('signUpBtn').addEventListener('click', async ()=>{
+  authError.textContent='';
+  const login = authEmail.value.trim();
+  if(!LOGIN_PATTERN.test(login)){ authError.textContent='Логин — латиницей, не короче 3 символов.'; return; }
+  if(authPassword.value.length<6){ authError.textContent='Пароль должен быть не короче 6 символов.'; return; }
+  const { error } = await sb.auth.signUp({ email: loginToEmail(login), password: authPassword.value });
+  if(error) authError.textContent = /already registered/i.test(error.message) ? 'Такой логин уже занят.' : error.message;
+  else authError.textContent = 'Готово — теперь нажмите «Войти».';
+});
+document.getElementById('signOutBtn').addEventListener('click', ()=> sb.auth.signOut());
+
+sb.auth.onAuthStateChange((event, session)=>{
+  if(session){
+    authScreen.style.display='none';
+    appRoot.style.display='block';
+    userEmailEl.textContent = emailToLogin(session.user.email);
+    loadWeeksList();
+  } else {
+    authScreen.style.display='flex';
+    appRoot.style.display='none';
+  }
+});
+
+/* ---------- weeks ---------- */
+async function loadWeeksList(){
+  const { data } = await sb.from('dash_weeks').select('id,week_start').order('week_start',{ascending:false});
+  weeksList = data||[];
+  const sel = document.getElementById('weekSelect');
+  if(!weeksList.length){
+    sel.innerHTML = '<option value="">— нет сохранённых недель —</option>';
+    document.getElementById('dashboardArea').style.display='none';
+    return;
+  }
+  sel.innerHTML = weeksList.map(w=>'<option value="'+w.id+'">'+new Date(w.week_start).toLocaleDateString('ru-RU')+'</option>').join('');
+  sel.value = weeksList[0].id;
+  await openWeek(weeksList[0].id);
+}
+document.getElementById('weekSelect').addEventListener('change', e=>{ if(e.target.value) openWeek(e.target.value); });
+document.getElementById('newWeekBtn').addEventListener('click', async ()=>{
+  const dateVal = document.getElementById('newWeekDate').value;
+  const note = document.getElementById('weekNote');
+  if(!dateVal){ note.textContent='Укажите дату.'; return; }
+  const { data:{ session } } = await sb.auth.getSession();
+  const { data, error } = await sb.from('dash_weeks').insert({
+    week_start: dateVal, created_by: session.user.id, created_by_email: session.user.email
+  }).select().single();
+  if(error){ note.textContent = /duplicate/i.test(error.message) ? 'Такая неделя уже есть.' : 'Ошибка: '+error.message; return; }
+  note.textContent = '';
+  await loadWeeksList();
+  document.getElementById('weekSelect').value = data.id;
+  await openWeek(data.id);
+});
+
+async function openWeek(weekId){
+  currentWeek = weeksList.find(w=>w.id===weekId) || {id:weekId};
+  const { data } = await sb.from('dash_entries').select('metric_key,value').eq('week_id', weekId);
+  currentValues = {};
+  (data||[]).forEach(r=>{ currentValues[r.metric_key] = r.value; });
+  document.getElementById('dashboardArea').style.display='block';
+  renderEntryForm();
+  renderTiles();
+  document.getElementById('drilldownArea').style.display='none';
+}
+
+/* ---------- entry form ---------- */
+function renderEntryForm(){
+  const box = document.getElementById('entryForm');
+  box.innerHTML = FIELD_GROUPS.map(g=>{
+    const fields = g.fields.map(f=>
+      '<div class="entry-field"><label for="f_'+f.key+'">'+f.label+' <span style="opacity:.6;">('+f.unit+')</span></label>'
+      + '<input type="number" step="any" id="f_'+f.key+'" data-key="'+f.key+'" value="'+(currentValues[f.key]!==undefined && currentValues[f.key]!==null ? currentValues[f.key] : '')+'"></div>'
+    ).join('');
+    return '<div class="entry-group"><h3>'+g.title+'</h3><div class="entry-grid">'+fields+'</div></div>';
+  }).join('');
+  box.querySelectorAll('input[data-key]').forEach(inp=>{
+    inp.addEventListener('input', ()=>{ currentValues[inp.dataset.key] = inp.value===''?null:Number(inp.value); renderTiles(); });
+  });
+}
+document.getElementById('saveEntriesBtn').addEventListener('click', async ()=>{
+  const status = document.getElementById('saveStatus');
+  if(!currentWeek){ status.textContent='Сначала выберите или создайте неделю.'; return; }
+  status.textContent = 'Сохранение…';
+  const { data:{ session } } = await sb.auth.getSession();
+  const rows = ALL_FIELDS
+    .filter(f=> currentValues[f.key]!==undefined && currentValues[f.key]!==null)
+    .map(f=>({ week_id: currentWeek.id, metric_key: f.key, value: currentValues[f.key], updated_by_email: session.user.email }));
+  if(!rows.length){ status.textContent='Нечего сохранять — заполните хотя бы одно поле.'; return; }
+  const { error } = await sb.from('dash_entries').upsert(rows, { onConflict: 'week_id,metric_key' });
+  status.textContent = error ? 'Ошибка: '+error.message : 'Сохранено '+rows.length+' значений — '+new Date().toLocaleTimeString('ru-RU');
+});
+
+/* ---------- computed tiles ---------- */
+function computeRevenue(product){
+  const rows = REVENUE_STREAMS.map(s=>({
+    stream:s, plan: num(revKey(product,s.key,'plan')), fact: num(revKey(product,s.key,'fact'))
+  }));
+  const planTotal = sum(REVENUE_STREAMS.map(s=>revKey(product,s.key,'plan')));
+  const factTotal = sum(REVENUE_STREAMS.map(s=>revKey(product,s.key,'fact')));
+  return {rows, planTotal, factTotal};
+}
+function computeUtilization(product){
+  const paid = num(utilKey(product,'paid')), potential = num(utilKey(product,'potential'));
+  const pct = (paid!==null && potential) ? (paid/potential*100) : null;
+  return {paid, potential, pct};
+}
+function computeTurnover(product){
+  return TURNOVER_STAGES.map(t=>({stage:t, value: num(turnKey(product,t.key))}));
+}
+function computeCostPerTon(){
+  const shippedTons = (num(turnKey('opalubka','shipped'))||0) + (num(turnKey('opalubka','received'))||0);
+  const repairTons = num(turnKey('opalubka','to_repair'));
+  const fotShip = num('labor_fot_shipment'), fotRepair = num('labor_fot_repair');
+  return {
+    shipmentCost: (fotShip!==null && shippedTons) ? fotShip/shippedTons : null,
+    repairCost: (fotRepair!==null && repairTons) ? fotRepair/repairTons : null
+  };
+}
+
+let openTileKey = null;
+
+function tileHtml(key, label, unit, valueHtml, subHtml, extraRowsHtml){
+  const active = openTileKey===key;
+  return '<div class="tile'+(active?' open':'')+'" data-tile="'+key+'">'
+    + '<div class="label">'+label+'</div>'
+    + '<div class="value">'+valueHtml+'</div>'
+    + (subHtml?'<div class="sub">'+subHtml+'</div>':'')
+    + (extraRowsHtml?'<div class="rows">'+extraRowsHtml+'</div>':'')
+    + '</div>';
+}
+function planFactRow(plan,fact){
+  return '<div class="row"><span>план '+fmtRub(plan)+'</span><span>факт '+fmtRub(fact)+'</span></div>';
+}
+
+function renderTiles(){
+  const grid = document.getElementById('tileGrid');
+  const revOp = computeRevenue('opalubka'), revBy = computeRevenue('bytovki');
+  const utOp = computeUtilization('opalubka'), utBy = computeUtilization('bytovki');
+  const turnOp = computeTurnover('opalubka'), turnBy = computeTurnover('bytovki');
+  const cost = computeCostPerTon();
+  const laborTotal = (num('labor_hours_shipment')||0) + (num('labor_hours_repair')||0);
+
+  let h = '';
+  h += tileHtml('rev_opalubka','Выручка — опалубка','₽', fmtRub(revOp.factTotal), 'план '+fmtRub(revOp.planTotal));
+  h += tileHtml('rev_bytovki','Выручка — бытовки','₽', fmtRub(revBy.factTotal), 'план '+fmtRub(revBy.planTotal));
+  h += tileHtml('util_opalubka','Утилизация — опалубка','%', fmtPct(utOp.pct), fmtNum(utOp.paid,'т-дн')+' из '+fmtNum(utOp.potential,'т-дн'));
+  h += tileHtml('util_bytovki','Утилизация — бытовки','%', fmtPct(utBy.pct), fmtNum(utBy.paid,'шт-дн')+' из '+fmtNum(utBy.potential,'шт-дн'));
+  h += tileHtml('cost','Себестоимость операции','₽/т',
+      fmtRub(cost.shipmentCost)+' / '+fmtRub(cost.repairCost),
+      'отгрузка-приёмка / ремонт, ₽ за тонну');
+  h += tileHtml('labor','Человеко-часы на операции','ч', fmtNum(laborTotal,'ч'),
+      fmtNum(num('labor_hours_shipment'),'ч')+' приёмка-отгрузка · '+fmtNum(num('labor_hours_repair'),'ч')+' ремонт');
+  h += '<div class="tile wide" data-tile="turn_opalubka"><div class="label">Грузооборот — опалубка, т</div><div class="rows">'
+      + turnOp.map(t=>'<div class="row"><span>'+t.stage.label+'</span><span>'+fmtNum(t.value,'т')+'</span></div>').join('') + '</div></div>';
+  h += '<div class="tile wide" data-tile="turn_bytovki"><div class="label">Грузооборот — бытовки, шт</div><div class="rows">'
+      + turnBy.map(t=>'<div class="row"><span>'+t.stage.label+'</span><span>'+fmtNum(t.value,'шт')+'</span></div>').join('') + '</div></div>';
+
+  grid.innerHTML = h;
+  grid.querySelectorAll('[data-tile]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const key = el.dataset.tile;
+      openTileKey = (openTileKey===key) ? null : key;
+      renderTiles();
+      renderDrilldown();
+    });
+  });
+  renderDrilldown();
+}
+
+function renderDrilldown(){
+  const box = document.getElementById('drilldownArea');
+  if(!openTileKey){ box.style.display='none'; box.innerHTML=''; return; }
+  let h = '';
+  if(openTileKey==='rev_opalubka' || openTileKey==='rev_bytovki'){
+    const product = openTileKey==='rev_opalubka' ? 'opalubka' : 'bytovki';
+    const {rows, planTotal, factTotal} = computeRevenue(product);
+    h += '<h3 style="font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-2);margin-bottom:8px;">Из чего складывается выручка — '+(product==='opalubka'?'опалубка':'бытовки')+'</h3>';
+    h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Поток</th><th>Служба</th><th>План</th><th>Факт</th><th>Δ</th><th>Статус</th></tr></thead><tbody>';
+    rows.forEach(r=>{
+      const plan=r.plan, fact=r.fact, delta=(plan!==null&&fact!==null)?fact-plan:null;
+      const met = delta!==null && delta>=0;
+      h += '<tr><td>'+r.stream.label+'</td><td>'+r.stream.dept+'</td>'
+        + '<td class="num">'+fmtRub(plan)+'</td><td class="num">'+fmtRub(fact)+'</td>'
+        + '<td class="num">'+(delta===null?'—':(delta>0?'+':'')+fmtRub(delta))+'</td>'
+        + '<td>'+(delta===null?'—':'<span class="badge '+(met?'ok':'miss')+'">'+(met?'план выполнен':'план не выполнен')+'</span>')+'</td></tr>';
+    });
+    h += '<tr style="font-weight:700;"><td>Итого</td><td>—</td><td class="num">'+fmtRub(planTotal)+'</td><td class="num">'+fmtRub(factTotal)+'</td>'
+      + '<td class="num">'+fmtRub(factTotal-planTotal)+'</td><td></td></tr>';
+    h += '</tbody></table></div>';
+  } else if(openTileKey==='util_opalubka' || openTileKey==='util_bytovki'){
+    h += '<p class="note">Причины низкой утилизации (дефицит спроса, слабая конверсия КП, оборудования нет в наличии, долгий ремонт/приёмка, простой на объекте) — переиспользуем дерево потерь из <span style="font-family:var(--font-mono);">docs/rental_operating_system.md</span>; отдельный ввод по причинам подключим следующим шагом, когда будет откуда брать эти цифры автоматически.</p>';
+  } else if(openTileKey==='cost'){
+    const cost = computeCostPerTon();
+    h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Операция</th><th>ФОТ за неделю</th><th>Обработано, т</th><th>₽/тонна</th></tr></thead><tbody>'
+      + '<tr><td>Приёмка/отгрузка</td><td class="num">'+fmtRub(num('labor_fot_shipment'))+'</td><td class="num">'+fmtNum((num(turnKey('opalubka','shipped'))||0)+(num(turnKey('opalubka','received'))||0),'т')+'</td><td class="num">'+fmtRub(cost.shipmentCost)+'</td></tr>'
+      + '<tr><td>Ремонт</td><td class="num">'+fmtRub(num('labor_fot_repair'))+'</td><td class="num">'+fmtNum(num(turnKey('opalubka','to_repair')),'т')+'</td><td class="num">'+fmtRub(cost.repairCost)+'</td></tr>'
+      + '</tbody></table></div>';
+  } else {
+    h += '<p class="note">Разбор по этой плитке появится, когда подключим соответствующую детализацию.</p>';
+  }
+  box.innerHTML = h;
+  box.style.display = 'block';
+}
+
+})();
+</script>
