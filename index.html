@@ -102,6 +102,11 @@ table.dyn td.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;
 .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;}
 .badge.ok{background:color-mix(in srgb, var(--good) 16%, transparent);color:var(--good);}
 .badge.miss{background:color-mix(in srgb, var(--critical) 16%, transparent);color:var(--critical);}
+.badge.warn{background:color-mix(in srgb, var(--warning) 18%, transparent);color:var(--warning);}
+.badge.crit{background:var(--critical);color:#fff;}
+.tile .delta{font-size:10.5px;margin-top:3px;font-family:var(--font-mono);}
+.tile .delta.up{color:var(--critical);}
+.tile .delta.down{color:var(--good);}
 
 /* entry form */
 .entry-group{margin-bottom:18px;}
@@ -144,6 +149,10 @@ table.dyn td.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;
       <label for="newWeekDate" style="margin-left:16px;">Новая неделя (дата начала):</label>
       <input type="date" id="newWeekDate">
       <button class="btn" id="newWeekBtn">Создать</button>
+    </div>
+    <div class="field-row">
+      <label for="compareWeekSelect">Сравнить с периодом:</label>
+      <select id="compareWeekSelect"><option value="">— не сравнивать —</option></select>
     </div>
     <div class="note" id="weekNote"></div>
   </div>
@@ -207,10 +216,24 @@ const TURNOVER_STAGES = [
   {key:'to_repair', label:'Поступило в ремонт'},
   {key:'from_repair', label:'Вышло из ремонта'}
 ];
+// Мощности считаются раздельно по продуктам (одна бригада работает и с опалубкой, и
+// с бытовками, но нормы т/чел-час и шт/чел-час разные единицы — поэтому и часы, и ФОТ,
+// и норма вводятся отдельно на каждый продукт, а не одним общим числом на бригаду).
+const CAPACITY_STAGES = [
+  {key:'shipment', label:'Приёмка/отгрузка'},
+  {key:'repair', label:'Ремонт'}
+];
+// Порог доли парка в ремонте: план — не более 3%; выше — предупреждение; выше 5% — критично.
+const REPAIR_SHARE_WARN = 3, REPAIR_SHARE_CRIT = 5;
 
 function revKey(product, stream, kind){ return 'rev_'+product+'_'+stream+'_'+kind; }
 function utilKey(product, kind){ return 'util_'+product+'_'+kind; }
 function turnKey(product, stage){ return 'turn_'+product+'_'+stage; }
+function laborHoursKey(product, stage){ return 'labor_hours_'+stage+'_'+product; }
+function laborFotKey(product, stage){ return 'labor_fot_'+stage+'_'+product; }
+function normKey(product, stage){ return 'norm_'+stage+'_'+product; }
+function repairStockKey(product){ return 'repair_stock_'+product; }
+function fleetTotalKey(product){ return 'fleet_total_'+product; }
 
 // Список всех вводимых полей — генерируется из справочников выше, а не пишется руками.
 function buildFieldGroups(){
@@ -230,14 +253,20 @@ function buildFieldGroups(){
     ]});
   });
   PRODUCTS.forEach(p=>{
-    groups.push({title:'Грузооборот · '+p.label, fields: TURNOVER_STAGES.map(t=>({key:turnKey(p.key,t.key), label:t.label, unit:p.unit}))});
+    const fields = TURNOVER_STAGES.map(t=>({key:turnKey(p.key,t.key), label:t.label, unit:p.unit}));
+    fields.push({key:repairStockKey(p.key), label:'Сейчас в ремонте (остаток)', unit:p.unit});
+    fields.push({key:fleetTotalKey(p.key), label:'Общий парк', unit:p.unit});
+    groups.push({title:'Грузооборот и парк · '+p.label, fields});
   });
-  groups.push({title:'Человеко-часы и ФОТ', fields:[
-    {key:'labor_hours_shipment', label:'Человеко-часы: приёмка/отгрузка', unit:'ч'},
-    {key:'labor_hours_repair', label:'Человеко-часы: ремонт', unit:'ч'},
-    {key:'labor_fot_shipment', label:'ФОТ смены приёмки/отгрузки за неделю', unit:'₽'},
-    {key:'labor_fot_repair', label:'ФОТ ремонтной бригады за неделю', unit:'₽'}
-  ]});
+  PRODUCTS.forEach(p=>{
+    const fields = [];
+    CAPACITY_STAGES.forEach(st=>{
+      fields.push({key:laborHoursKey(p.key,st.key), label:'Человеко-часы: '+st.label, unit:'ч'});
+      fields.push({key:laborFotKey(p.key,st.key), label:'ФОТ: '+st.label+', за неделю', unit:'₽'});
+      fields.push({key:normKey(p.key,st.key), label:'Норма: '+st.label, unit:p.unit+'/чел-час'});
+    });
+    groups.push({title:'Мощности, ФОТ и нормы · '+p.label, fields});
+  });
   return groups;
 }
 const FIELD_GROUPS = buildFieldGroups();
@@ -247,9 +276,11 @@ const ALL_FIELDS = FIELD_GROUPS.flatMap(g=>g.fields);
 let weeksList = [];
 let currentWeek = null; // {id, week_start}
 let currentValues = {}; // metric_key -> number
+let compareValues = null; // metric_key -> number, null если период сравнения не выбран
 
 function num(key){ const v = currentValues[key]; return (v===undefined||v===null||v==='') ? null : Number(v); }
-function sum(keys){ return keys.reduce((s,k)=>{ const v=num(k); return s+(v||0); },0); }
+function numWas(key){ if(!compareValues) return null; const v = compareValues[key]; return (v===undefined||v===null||v==='') ? null : Number(v); }
+function sum(keys, get){ get = get || num; return keys.reduce((s,k)=>{ const v=get(k); return s+(v||0); },0); }
 
 /* ---------- auth ---------- */
 const authScreen = document.getElementById('authScreen');
@@ -303,7 +334,25 @@ async function loadWeeksList(){
   sel.value = weeksList[0].id;
   await openWeek(weeksList[0].id);
 }
+function refreshCompareOptions(excludeWeekId){
+  const cmp = document.getElementById('compareWeekSelect');
+  const prevChosen = cmp.value;
+  const others = weeksList.filter(w=>w.id!==excludeWeekId);
+  cmp.innerHTML = '<option value="">— не сравнивать —</option>'
+    + others.map(w=>'<option value="'+w.id+'">'+new Date(w.week_start).toLocaleDateString('ru-RU')+'</option>').join('');
+  cmp.value = others.some(w=>w.id===prevChosen) ? prevChosen : '';
+}
 document.getElementById('weekSelect').addEventListener('change', e=>{ if(e.target.value) openWeek(e.target.value); });
+document.getElementById('compareWeekSelect').addEventListener('change', async e=>{
+  if(e.target.value){
+    const { data } = await sb.from('dash_entries').select('metric_key,value').eq('week_id', e.target.value);
+    compareValues = {};
+    (data||[]).forEach(r=>{ compareValues[r.metric_key] = r.value; });
+  } else {
+    compareValues = null;
+  }
+  renderTiles();
+});
 document.getElementById('newWeekBtn').addEventListener('click', async ()=>{
   const dateVal = document.getElementById('newWeekDate').value;
   const note = document.getElementById('weekNote');
@@ -324,6 +373,8 @@ async function openWeek(weekId){
   const { data } = await sb.from('dash_entries').select('metric_key,value').eq('week_id', weekId);
   currentValues = {};
   (data||[]).forEach(r=>{ currentValues[r.metric_key] = r.value; });
+  compareValues = null;
+  refreshCompareOptions(weekId);
   document.getElementById('dashboardArea').style.display='block';
   renderEntryForm();
   showLevel1();
@@ -356,70 +407,129 @@ document.getElementById('saveEntriesBtn').addEventListener('click', async ()=>{
   status.textContent = error ? 'Ошибка: '+error.message : 'Сохранено '+rows.length+' значений — '+new Date().toLocaleTimeString('ru-RU');
 });
 
-/* ---------- computed tiles ---------- */
-function computeRevenue(product){
+/* ---------- computed tiles ----------
+   Все compute-функции принимают необязательный get(key) — по умолчанию читают
+   текущую неделю (num), но им можно передать numWas, чтобы посчитать ровно то же
+   самое для периода сравнения. Так формула гарантированно одна и та же для
+   "сейчас" и "было" — расхождение исключено конструктивно. */
+function computeRevenue(product, get){
+  get = get || num;
   const rows = REVENUE_STREAMS.map(s=>({
-    stream:s, plan: num(revKey(product,s.key,'plan')), fact: num(revKey(product,s.key,'fact'))
+    stream:s, plan: get(revKey(product,s.key,'plan')), fact: get(revKey(product,s.key,'fact'))
   }));
-  const planTotal = sum(REVENUE_STREAMS.map(s=>revKey(product,s.key,'plan')));
-  const factTotal = sum(REVENUE_STREAMS.map(s=>revKey(product,s.key,'fact')));
+  const planTotal = sum(REVENUE_STREAMS.map(s=>revKey(product,s.key,'plan')), get);
+  const factTotal = sum(REVENUE_STREAMS.map(s=>revKey(product,s.key,'fact')), get);
   return {rows, planTotal, factTotal};
 }
-function computeUtilization(product){
-  const paid = num(utilKey(product,'paid')), potential = num(utilKey(product,'potential'));
+function computeUtilization(product, get){
+  get = get || num;
+  const paid = get(utilKey(product,'paid')), potential = get(utilKey(product,'potential'));
   const pct = (paid!==null && potential) ? (paid/potential*100) : null;
   return {paid, potential, pct};
 }
-function computeTurnover(product){
-  return TURNOVER_STAGES.map(t=>({stage:t, value: num(turnKey(product,t.key))}));
+function computeTurnover(product, get){
+  get = get || num;
+  return TURNOVER_STAGES.map(t=>({stage:t, value: get(turnKey(product,t.key))}));
 }
-function computeCostPerTon(){
-  const shippedTons = (num(turnKey('opalubka','shipped'))||0) + (num(turnKey('opalubka','received'))||0);
-  const repairTons = num(turnKey('opalubka','to_repair'));
-  const fotShip = num('labor_fot_shipment'), fotRepair = num('labor_fot_repair');
+// План мощности — не вводится вручную, а считается: человеко-часы × норма на
+// человеко-час = 100% доступной мощности за неделю. Факт — то, что реально прошло
+// через эту стадию (приёмка/отгрузка — сумма отгруженного и принятого; ремонт —
+// то, что вышло из ремонта, то есть готовая продукция этой бригады).
+function computeCapacity(product, stageKey, get){
+  get = get || num;
+  const stage = CAPACITY_STAGES.find(s=>s.key===stageKey);
+  const hours = get(laborHoursKey(product,stageKey));
+  const norm = get(normKey(product,stageKey));
+  const planCapacity = (hours!==null && norm!==null) ? hours*norm : null;
+  const factValue = stageKey==='shipment'
+    ? (get(turnKey(product,'shipped'))||0) + (get(turnKey(product,'received'))||0)
+    : get(turnKey(product,'from_repair'));
+  const pct = planCapacity ? (factValue/planCapacity*100) : null;
+  return {stage, hours, norm, planCapacity, factValue, pct};
+}
+function computeCostForProduct(product, get){
+  get = get || num;
+  const shipUnits = (get(turnKey(product,'shipped'))||0) + (get(turnKey(product,'received'))||0);
+  const repairUnits = get(turnKey(product,'from_repair'));
+  const fotShip = get(laborFotKey(product,'shipment')), fotRepair = get(laborFotKey(product,'repair'));
   return {
-    shipmentCost: (fotShip!==null && shippedTons) ? fotShip/shippedTons : null,
-    repairCost: (fotRepair!==null && repairTons) ? fotRepair/repairTons : null
+    shipmentCost: (fotShip!==null && shipUnits) ? fotShip/shipUnits : null,
+    repairCost: (fotRepair!==null && repairUnits) ? fotRepair/repairUnits : null
   };
 }
+// Доля парка в ремонте — остаток "сейчас в ремонте" к общему парку, не путать с
+// "поступило в ремонт за неделю" (это поток, а не остаток).
+function computeRepairShare(product, get){
+  get = get || num;
+  const stock = get(repairStockKey(product)), fleet = get(fleetTotalKey(product));
+  const pct = (stock!==null && fleet) ? stock/fleet*100 : null;
+  const status = pct===null ? null : (pct<=REPAIR_SHARE_WARN ? 'ok' : (pct<=REPAIR_SHARE_CRIT ? 'warn' : 'crit'));
+  return {stock, fleet, pct, status};
+}
+const REPAIR_SHARE_BADGE_TEXT = {ok:'в норме', warn:'выше нормы', crit:'критично выше нормы'};
 
 let openTileKey = null;
 
-function tileHtml(key, label, unit, valueHtml, subHtml, extraRowsHtml){
+function tileHtml(key, label, valueHtml, subHtml, extraRowsHtml, deltaHtml){
   const active = openTileKey===key;
   return '<div class="tile'+(active?' open':'')+'" data-tile="'+key+'">'
     + '<div class="label">'+label+'</div>'
     + '<div class="value">'+valueHtml+'</div>'
     + (subHtml?'<div class="sub">'+subHtml+'</div>':'')
+    + (deltaHtml||'')
     + (extraRowsHtml?'<div class="rows">'+extraRowsHtml+'</div>':'')
     + '</div>';
 }
-function planFactRow(plan,fact){
-  return '<div class="row"><span>план '+fmtRub(plan)+'</span><span>факт '+fmtRub(fact)+'</span></div>';
+// Динамика к периоду сравнения — только когда он выбран; формула для "было" всегда
+// та же самая функция с get=numWas, поэтому не может разойтись со "стало".
+function deltaLine(curVal, wasVal, fmt){
+  if(compareValues===null) return '';
+  if(curVal===null && wasVal===null) return '';
+  const d = (curVal!==null && wasVal!==null) ? curVal-wasVal : null;
+  return '<div class="delta">было '+fmt(wasVal)+' · Δ '+(d===null?'—':(d>0?'+':'')+fmt(d))+'</div>';
 }
 
 function renderTiles(){
   const grid = document.getElementById('tileGrid');
-  const revOp = computeRevenue('opalubka'), revBy = computeRevenue('bytovki');
-  const utOp = computeUtilization('opalubka'), utBy = computeUtilization('bytovki');
-  const turnOp = computeTurnover('opalubka'), turnBy = computeTurnover('bytovki');
-  const cost = computeCostPerTon();
-  const laborTotal = (num('labor_hours_shipment')||0) + (num('labor_hours_repair')||0);
-
   let h = '';
-  h += tileHtml('rev_opalubka','Выручка — опалубка','₽', fmtRub(revOp.factTotal), 'план '+fmtRub(revOp.planTotal));
-  h += tileHtml('rev_bytovki','Выручка — бытовки','₽', fmtRub(revBy.factTotal), 'план '+fmtRub(revBy.planTotal));
-  h += tileHtml('util_opalubka','Утилизация — опалубка','%', fmtPct(utOp.pct), fmtNum(utOp.paid,'т-дн')+' из '+fmtNum(utOp.potential,'т-дн'));
-  h += tileHtml('util_bytovki','Утилизация — бытовки','%', fmtPct(utBy.pct), fmtNum(utBy.paid,'шт-дн')+' из '+fmtNum(utBy.potential,'шт-дн'));
-  h += tileHtml('cost','Себестоимость операции','₽/т',
+
+  PRODUCTS.forEach(p=>{
+    const rev = computeRevenue(p.key), revWas = computeRevenue(p.key, numWas);
+    h += tileHtml('rev_'+p.key, 'Выручка — '+p.label,
+      fmtRub(rev.factTotal), 'план '+fmtRub(rev.planTotal),
+      null, deltaLine(rev.factTotal, revWas.factTotal, fmtRub));
+  });
+
+  PRODUCTS.forEach(p=>{
+    const ut = computeUtilization(p.key), utWas = computeUtilization(p.key, numWas);
+    h += tileHtml('util_'+p.key, 'Утилизация — '+p.label,
+      fmtPct(ut.pct), fmtNum(ut.paid,p.unit+'-дн')+' из '+fmtNum(ut.potential,p.unit+'-дн'),
+      null, deltaLine(ut.pct, utWas.pct, fmtPct));
+  });
+
+  PRODUCTS.forEach(p=>{
+    const rows = CAPACITY_STAGES.map(st=>{
+      const c = computeCapacity(p.key, st.key);
+      return '<div class="row"><span>'+st.label+'</span><span>'+fmtPct(c.pct)+'</span></div>';
+    }).join('');
+    h += '<div class="tile wide" data-tile="capacity_'+p.key+'"><div class="label">Загрузка мощностей — '+p.label+'</div><div class="rows">'+rows+'</div></div>';
+  });
+
+  PRODUCTS.forEach(p=>{
+    const cost = computeCostForProduct(p.key);
+    h += tileHtml('cost_'+p.key, 'Себестоимость операции — '+p.label,
       fmtRub(cost.shipmentCost)+' / '+fmtRub(cost.repairCost),
-      'отгрузка-приёмка / ремонт, ₽ за тонну');
-  h += tileHtml('labor','Человеко-часы на операции','ч', fmtNum(laborTotal,'ч'),
-      fmtNum(num('labor_hours_shipment'),'ч')+' приёмка-отгрузка · '+fmtNum(num('labor_hours_repair'),'ч')+' ремонт');
-  h += '<div class="tile wide" data-tile="turn_opalubka"><div class="label">Грузооборот — опалубка, т</div><div class="rows">'
-      + turnOp.map(t=>'<div class="row"><span>'+t.stage.label+'</span><span>'+fmtNum(t.value,'т')+'</span></div>').join('') + '</div></div>';
-  h += '<div class="tile wide" data-tile="turn_bytovki"><div class="label">Грузооборот — бытовки, шт</div><div class="rows">'
-      + turnBy.map(t=>'<div class="row"><span>'+t.stage.label+'</span><span>'+fmtNum(t.value,'шт')+'</span></div>').join('') + '</div></div>';
+      'приёмка-отгрузка / ремонт, ₽ за '+(p.unit==='т'?'тонну':'штуку'));
+  });
+
+  PRODUCTS.forEach(p=>{
+    const turn = computeTurnover(p.key);
+    const share = computeRepairShare(p.key);
+    let rows = turn.map(t=>'<div class="row"><span>'+t.stage.label+'</span><span>'+fmtNum(t.value,p.unit)+'</span></div>').join('');
+    const badge = share.status ? '<span class="badge '+share.status+'">'+REPAIR_SHARE_BADGE_TEXT[share.status]+'</span>' : '';
+    rows += '<div class="row"><span>% парка в ремонте '+badge+'</span><span>'+fmtPct(share.pct)+'</span></div>';
+    h += '<div class="tile wide" data-tile="turn_'+p.key+'"><div class="label">Грузооборот — '+p.label+', '+p.unit+'</div><div class="rows">'+rows+'</div></div>';
+  });
 
   grid.innerHTML = h;
   grid.querySelectorAll('[data-tile]').forEach(el=>{
@@ -434,10 +544,12 @@ const TILE_TITLES = {
   rev_bytovki: 'Разбор — Выручка · бытовки',
   util_opalubka: 'Разбор — Утилизация · опалубка',
   util_bytovki: 'Разбор — Утилизация · бытовки',
-  cost: 'Разбор — Себестоимость операции',
-  labor: 'Разбор — Человеко-часы на операции',
-  turn_opalubka: 'Грузооборот — опалубка, т',
-  turn_bytovki: 'Грузооборот — бытовки, шт'
+  capacity_opalubka: 'Разбор — Загрузка мощностей · опалубка',
+  capacity_bytovki: 'Разбор — Загрузка мощностей · бытовки',
+  cost_opalubka: 'Разбор — Себестоимость операции · опалубка',
+  cost_bytovki: 'Разбор — Себестоимость операции · бытовки',
+  turn_opalubka: 'Грузооборот и парк — опалубка',
+  turn_bytovki: 'Грузооборот и парк — бытовки'
 };
 function showLevel1(){
   openTileKey = null;
@@ -459,11 +571,13 @@ document.getElementById('backToLevel1Btn').addEventListener('click', showLevel1)
 function renderDrilldown(){
   const box = document.getElementById('drilldownArea');
   if(!openTileKey) return;
+  const product = openTileKey.endsWith('_opalubka') ? 'opalubka' : (openTileKey.endsWith('_bytovki') ? 'bytovki' : null);
+  const p = product ? PRODUCTS.find(x=>x.key===product) : null;
   let h = '';
+
   if(openTileKey==='rev_opalubka' || openTileKey==='rev_bytovki'){
-    const product = openTileKey==='rev_opalubka' ? 'opalubka' : 'bytovki';
     const {rows, planTotal, factTotal} = computeRevenue(product);
-    h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Поток</th><th>Служба</th><th>План</th><th>Факт</th><th>Δ</th><th>Статус</th></tr></thead><tbody>';
+    h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Поток</th><th>Служба</th><th>План</th><th>Факт</th><th>Δ к плану</th><th>Статус</th></tr></thead><tbody>';
     rows.forEach(r=>{
       const plan=r.plan, fact=r.fact, delta=(plan!==null&&fact!==null)?fact-plan:null;
       const met = delta!==null && delta>=0;
@@ -475,19 +589,54 @@ function renderDrilldown(){
     h += '<tr style="font-weight:700;"><td>Итого</td><td>—</td><td class="num">'+fmtRub(planTotal)+'</td><td class="num">'+fmtRub(factTotal)+'</td>'
       + '<td class="num">'+fmtRub(factTotal-planTotal)+'</td><td></td></tr>';
     h += '</tbody></table></div>';
+    if(compareValues!==null){
+      const was = computeRevenue(product, numWas);
+      const d = factTotal-was.factTotal;
+      h += '<p class="note" style="margin-top:10px;">Было в сравниваемом периоде: факт '+fmtRub(was.factTotal)+', план '+fmtRub(was.planTotal)+'. Δ факта к тому периоду: '+(d>0?'+':'')+fmtRub(d)+'.</p>';
+    }
   } else if(openTileKey==='util_opalubka' || openTileKey==='util_bytovki'){
     h += '<p class="note">Причины низкой утилизации (дефицит спроса, слабая конверсия КП, оборудования нет в наличии, долгий ремонт/приёмка, простой на объекте) — переиспользуем дерево потерь из <span style="font-family:var(--font-mono);">docs/rental_operating_system.md</span>; отдельный ввод по причинам подключим следующим шагом, когда будет откуда брать эти цифры автоматически.</p>';
-  } else if(openTileKey==='cost'){
-    const cost = computeCostPerTon();
-    h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Операция</th><th>ФОТ за неделю</th><th>Обработано, т</th><th>₽/тонна</th></tr></thead><tbody>'
-      + '<tr><td>Приёмка/отгрузка</td><td class="num">'+fmtRub(num('labor_fot_shipment'))+'</td><td class="num">'+fmtNum((num(turnKey('opalubka','shipped'))||0)+(num(turnKey('opalubka','received'))||0),'т')+'</td><td class="num">'+fmtRub(cost.shipmentCost)+'</td></tr>'
-      + '<tr><td>Ремонт</td><td class="num">'+fmtRub(num('labor_fot_repair'))+'</td><td class="num">'+fmtNum(num(turnKey('opalubka','to_repair')),'т')+'</td><td class="num">'+fmtRub(cost.repairCost)+'</td></tr>'
+  } else if(openTileKey==='capacity_opalubka' || openTileKey==='capacity_bytovki'){
+    h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Этап</th><th>Человеко-часы</th><th>Норма, '+p.unit+'/чел-час</th><th>План (100% мощности), '+p.unit+'</th><th>Факт, '+p.unit+'</th><th>% загрузки</th></tr></thead><tbody>';
+    CAPACITY_STAGES.forEach(st=>{
+      const c = computeCapacity(product, st.key);
+      h += '<tr><td>'+st.label+'</td><td class="num">'+fmtNum(c.hours,'ч')+'</td><td class="num">'+fmtNum(c.norm)+'</td>'
+        + '<td class="num">'+fmtNum(c.planCapacity,p.unit)+'</td><td class="num">'+fmtNum(c.factValue,p.unit)+'</td>'
+        + '<td class="num">'+fmtPct(c.pct)+'</td></tr>';
+    });
+    h += '</tbody></table></div>';
+    h += '<p class="note" style="margin-top:8px;">План — не ручной ввод, а расчёт: человеко-часы × норма на человеко-час = 100% доступной мощности за неделю. Факт ниже плана — либо не хватает рук, либо фактическая выработка ниже норматива.</p>';
+  } else if(openTileKey==='cost_opalubka' || openTileKey==='cost_bytovki'){
+    const cost = computeCostForProduct(product);
+    const shipUnits = (num(turnKey(product,'shipped'))||0) + (num(turnKey(product,'received'))||0);
+    const repairUnits = num(turnKey(product,'from_repair'));
+    h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Операция</th><th>ФОТ за неделю</th><th>Обработано, '+p.unit+'</th><th>₽/'+p.unit+'</th></tr></thead><tbody>'
+      + '<tr><td>Приёмка/отгрузка</td><td class="num">'+fmtRub(num(laborFotKey(product,'shipment')))+'</td><td class="num">'+fmtNum(shipUnits,p.unit)+'</td><td class="num">'+fmtRub(cost.shipmentCost)+'</td></tr>'
+      + '<tr><td>Ремонт</td><td class="num">'+fmtRub(num(laborFotKey(product,'repair')))+'</td><td class="num">'+fmtNum(repairUnits,p.unit)+'</td><td class="num">'+fmtRub(cost.repairCost)+'</td></tr>'
+      + '</tbody></table></div>';
+  } else if(openTileKey==='turn_opalubka' || openTileKey==='turn_bytovki'){
+    const turn = computeTurnover(product);
+    const share = computeRepairShare(product);
+    h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Стадия</th><th>Сейчас</th>'+(compareValues!==null?'<th>Было</th><th>Δ</th>':'')+'</tr></thead><tbody>';
+    turn.forEach(t=>{
+      h += '<tr><td>'+t.stage.label+'</td><td class="num">'+fmtNum(t.value,p.unit)+'</td>';
+      if(compareValues!==null){
+        const was = numWas(turnKey(product,t.stage.key));
+        const d = (t.value!==null&&was!==null)?t.value-was:null;
+        h += '<td class="num">'+fmtNum(was,p.unit)+'</td><td class="num">'+(d===null?'—':(d>0?'+':'')+fmtNum(d,p.unit))+'</td>';
+      }
+      h += '</tr>';
+    });
+    h += '</tbody></table></div>';
+    h += '<div class="table-wrap" style="margin-top:12px;"><table class="dyn"><thead><tr><th>Доля парка в ремонте</th><th>Сейчас в ремонте</th><th>Общий парк</th><th>%</th><th>Норма</th><th>Статус</th></tr></thead><tbody>'
+      + '<tr><td>'+p.label+'</td><td class="num">'+fmtNum(share.stock,p.unit)+'</td><td class="num">'+fmtNum(share.fleet,p.unit)+'</td>'
+      + '<td class="num">'+fmtPct(share.pct)+'</td><td class="num">≤'+REPAIR_SHARE_WARN+'%</td>'
+      + '<td>'+(share.status?'<span class="badge '+share.status+'">'+REPAIR_SHARE_BADGE_TEXT[share.status]+'</span>':'—')+'</td></tr>'
       + '</tbody></table></div>';
   } else {
     h += '<p class="note">Разбор по этой плитке появится, когда подключим соответствующую детализацию.</p>';
   }
   box.innerHTML = h;
-  box.style.display = 'block';
 }
 
 })();
