@@ -5,7 +5,7 @@
   --bg:#F4F2EC; --surface:#FFFFFF; --surface-2:#EEEBE1; --surface-3:#E4E0D2;
   --ink:#1B2028; --ink-2:#4B5266; --ink-muted:#868C9C;
   --border:rgba(27,32,40,0.11); --border-strong:rgba(27,32,40,0.22);
-  --accent:#1F3A5F; --accent-2:#A9803F; --accent-ink:#ffffff;
+  --accent:#1F3A5F; --accent-2:#A9803F; --chart-3:#6B4C86; --accent-ink:#ffffff;
   --good:#1E7145; --warning:#A9760F; --critical:#A23B3B;
   --good-bg:color-mix(in srgb, var(--good) 14%, transparent);
   --warning-bg:color-mix(in srgb, var(--warning) 16%, transparent);
@@ -22,7 +22,7 @@
     --bg:#12151C; --surface:#1A1F29; --surface-2:#202631; --surface-3:#262D3A;
     --ink:#ECEEF3; --ink-2:#A9AFC0; --ink-muted:#767C8E;
     --border:rgba(255,255,255,0.10); --border-strong:rgba(255,255,255,0.20);
-    --accent:#7C9FCB; --accent-2:#CBA55C; --accent-ink:#0C1622;
+    --accent:#7C9FCB; --accent-2:#CBA55C; --chart-3:#B79BCB; --accent-ink:#0C1622;
     --good:#3FA46A; --warning:#CC9A38; --critical:#D3696B;
     --good-bg:color-mix(in srgb, var(--good) 18%, transparent);
     --warning-bg:color-mix(in srgb, var(--warning) 18%, transparent);
@@ -35,7 +35,7 @@
   --bg:#12151C; --surface:#1A1F29; --surface-2:#202631; --surface-3:#262D3A;
   --ink:#ECEEF3; --ink-2:#A9AFC0; --ink-muted:#767C8E;
   --border:rgba(255,255,255,0.10); --border-strong:rgba(255,255,255,0.20);
-  --accent:#7C9FCB; --accent-2:#CBA55C; --accent-ink:#0C1622;
+  --accent:#7C9FCB; --accent-2:#CBA55C; --chart-3:#B79BCB; --accent-ink:#0C1622;
   --good:#3FA46A; --warning:#CC9A38; --critical:#D3696B;
   --good-bg:color-mix(in srgb, var(--good) 18%, transparent);
   --warning-bg:color-mix(in srgb, var(--warning) 18%, transparent);
@@ -47,7 +47,7 @@
   --bg:#F4F2EC; --surface:#FFFFFF; --surface-2:#EEEBE1; --surface-3:#E4E0D2;
   --ink:#1B2028; --ink-2:#4B5266; --ink-muted:#868C9C;
   --border:rgba(27,32,40,0.11); --border-strong:rgba(27,32,40,0.22);
-  --accent:#1F3A5F; --accent-2:#A9803F; --accent-ink:#ffffff;
+  --accent:#1F3A5F; --accent-2:#A9803F; --chart-3:#6B4C86; --accent-ink:#ffffff;
   --good:#1E7145; --warning:#A9760F; --critical:#A23B3B;
   --good-bg:color-mix(in srgb, var(--good) 14%, transparent);
   --warning-bg:color-mix(in srgb, var(--warning) 16%, transparent);
@@ -81,6 +81,8 @@ input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline
 .btn.primary:hover{filter:brightness(1.08);}
 .btn.small{padding:4px 9px;font-size:11.5px;}
 .note{font-size:11.5px;color:var(--ink-muted);margin-top:6px;}
+.note a{color:var(--accent);font-weight:600;}
+.note a:hover{text-decoration-thickness:2px;}
 
 /* auth */
 .auth-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:100;padding:20px;}
@@ -102,7 +104,9 @@ input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline
 .tile.status-ok::before{background:var(--good);opacity:.8;}
 .tile.status-warn::before{background:var(--warning);opacity:.9;}
 .tile.status-crit::before{background:var(--critical);opacity:1;}
-.tile:hover{border-color:var(--border-strong);transform:translateY(-1px);}
+.tile::after{content:"›";position:absolute;top:9px;right:13px;font-family:var(--font-display);font-size:20px;line-height:1;font-weight:700;color:var(--ink-muted);opacity:.5;transition:color .12s, opacity .12s, transform .12s;}
+.tile:hover{border-color:var(--border-strong);box-shadow:var(--shadow), 0 0 0 1px var(--accent);transform:translateY(-1px);}
+.tile:hover::after{color:var(--accent);opacity:1;transform:translateX(2px);}
 .tile.open{border-color:var(--accent);}
 .tile.wide{grid-column:span 2;}
 .tile .label{font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-muted);font-weight:700;margin-bottom:7px;}
@@ -123,7 +127,10 @@ table.dyn thead th{background:var(--surface-2);color:var(--ink-2);font-weight:60
 table.dyn tbody tr:last-child td{border-bottom:none;}
 table.dyn td.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right;}
 table.dyn tbody tr.clickable-row{cursor:pointer;}
+table.dyn tbody tr.clickable-row td:first-child{border-left:3px solid var(--accent);}
 table.dyn tbody tr.clickable-row:hover{background:var(--surface-2);}
+.row-link{display:inline-block;margin-left:8px;color:var(--accent);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:0.03em;white-space:nowrap;}
+tr.clickable-row:hover .row-link{text-decoration:underline;}
 .num-pos{color:var(--good);}
 .num-neg{color:var(--critical);}
 .diagnosis{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:12.5px;color:var(--ink-2);margin-bottom:12px;}
@@ -831,7 +838,7 @@ function renderDrilldown(){
       const plan=r.plan, fact=r.fact, delta=(plan!==null&&fact!==null)?fact-plan:null;
       const met = delta!==null && delta>=0;
       const drillable = r.stream.key==='new';
-      h += '<tr'+(drillable?' class="clickable-row" data-funnel-product="'+product+'"':'')+'><td>'+r.stream.label+(drillable?' →':'')+'</td><td>'+r.stream.dept+'</td>'
+      h += '<tr'+(drillable?' class="clickable-row" data-funnel-product="'+product+'"':'')+'><td>'+r.stream.label+(drillable?' <span class="row-link">открыть воронку ›</span>':'')+'</td><td>'+r.stream.dept+'</td>'
         + '<td class="num">'+fmtRub(plan)+'</td><td class="num">'+fmtRub(fact)+'</td>'
         + '<td class="num">'+(delta===null?'—':(delta>0?'+':'')+fmtRub(delta))+'</td>'
         + '<td>'+(delta===null?'—':'<span class="badge '+(met?'ok':'miss')+'">'+(met?'план выполнен':'план не выполнен')+'</span>')+'</td></tr>';
@@ -858,7 +865,7 @@ function renderDrilldown(){
       const otherShare = repairShare!==null ? Math.max(gapData.gap-repairShare,0) : null;
       h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Из чего складывается недобор</th><th>'+p.unit+'-дни</th><th>Служба</th></tr></thead><tbody>'
         + '<tr><td>Простой из-за ремонта (остаток в ремонте × 7 дней, оценка)</td><td class="num">'+fmtNum(repairShare,p.unit+'-дн')+'</td><td>Ремонт/приёмка</td></tr>'
-        + '<tr class="clickable-row" data-funnel-product="'+product+'"><td>Не арендовано при готовности — дефицит спроса или слабая конверсия →</td><td class="num">'+fmtNum(otherShare,p.unit+'-дн')+'</td><td>Маркетинг / Продажи</td></tr>'
+        + '<tr class="clickable-row" data-funnel-product="'+product+'"><td>Не арендовано при готовности — дефицит спроса или слабая конверсия <span class="row-link">открыть воронку ›</span></td><td class="num">'+fmtNum(otherShare,p.unit+'-дн')+'</td><td>Маркетинг / Продажи</td></tr>'
         + '<tr style="font-weight:700;"><td>Итого недобор</td><td class="num">'+fmtNum(gapData.gap,p.unit+'-дн')+'</td><td></td></tr>'
         + '</tbody></table></div>';
       h += '<p class="note" style="margin-top:8px;">Оценка простоя в ремонте приблизительная (остаток на конец недели × 7, а не средний за неделю). Остаток недобора — открывает ту же воронку «Новые клиенты», что и в разборе выручки: чаще всего это тот же дефицит лидов или слабая конверсия продаж, что бьёт и по выручке, и по утилизации одновременно.</p>';
@@ -990,7 +997,7 @@ function renderLevel3(){
   ], {fmtAxis:v=>Math.round(v), ariaLabel:'Динамика КП и заказов по неделям'});
   h += chartCard('Конверсия по этапам, %', NEW_FUNNEL_STAGES.slice(1).map((s,i)=>({
     label:NEW_FUNNEL_STAGES[i].label+' → '+s.label,
-    color: i===0?'var(--accent)':(i===1?'var(--accent-2)':'var(--ink-2)'),
+    color: i===0?'var(--accent)':(i===1?'var(--accent-2)':'var(--chart-3)'),
     values: seriesFor(get=>computeNewFunnel(product,get).conversions[i].pct)
   })), {fmtAxis:v=>Math.round(v)+'%', ariaLabel:'Динамика конверсии по этапам воронки'});
 
