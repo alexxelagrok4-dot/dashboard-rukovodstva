@@ -122,6 +122,13 @@ table.dyn th,table.dyn td{padding:8px 10px;border-bottom:1px solid var(--border)
 table.dyn thead th{background:var(--surface-2);color:var(--ink-2);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:0.04em;}
 table.dyn tbody tr:last-child td{border-bottom:none;}
 table.dyn td.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right;}
+table.dyn tbody tr.clickable-row{cursor:pointer;}
+table.dyn tbody tr.clickable-row:hover{background:var(--surface-2);}
+.num-pos{color:var(--good);}
+.num-neg{color:var(--critical);}
+.diagnosis{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:12.5px;color:var(--ink-2);margin-bottom:12px;}
+.diagnosis strong{color:var(--ink);}
+.diagnosis .dept-tag{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--accent-2);margin-left:4px;}
 .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;}
 .badge.ok{background:var(--good-bg);color:var(--good);}
 .badge.miss{background:var(--critical-bg);color:var(--critical);}
@@ -202,6 +209,11 @@ table.dyn td.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;
       <h2 id="level2Title" style="margin:14px 0 0;"></h2>
       <div class="drilldown" id="drilldownArea"></div>
     </div>
+    <div class="card" id="level3Screen" style="display:none;">
+      <button class="btn small" id="backToLevel2Btn">← Назад к выручке</button>
+      <h2 id="level3Title" style="margin:14px 0 0;"></h2>
+      <div class="drilldown" id="level3Area"></div>
+    </div>
 
     <div class="card">
       <h2>Ввод данных за неделю <span class="hint">пока вручную — источники по каждому потоку подключим по мере готовности выгрузок</span></h2>
@@ -260,6 +272,17 @@ const CAPACITY_STAGES = [
 ];
 // Порог доли парка в ремонте: план — не более 3%; выше — предупреждение; выше 5% — критично.
 const REPAIR_SHARE_WARN = 3, REPAIR_SHARE_CRIT = 5;
+// Воронка третьего уровня — только для потока "Новые клиенты" (см. docs/rental_operating_system.md,
+// "Дерево причин низкой утилизации": спрос = лиды/сегмент, продажи = конверсия лид→КП→заказ).
+// Для повторных/продлений и взыскания своя причинная модель — retention и СБ-инструмент
+// соответственно, не воронка лидов; строить для них то же самое было бы неверно по сути.
+const NEW_FUNNEL_STAGES = [
+  {key:'leads', label:'Лиды', dept:'Маркетинг'},
+  {key:'target_leads', label:'Целевые лиды', dept:'Маркетинг'},
+  {key:'proposals', label:'КП отправлено', dept:'Продажи'},
+  {key:'orders', label:'Заказы (сделки)', dept:'Продажи'}
+];
+function newFunnelKey(product, stage){ return 'newfunnel_'+stage+'_'+product; }
 
 function revKey(product, stream, kind){ return 'rev_'+product+'_'+stream+'_'+kind; }
 function utilKey(product, kind){ return 'util_'+product+'_'+kind; }
@@ -280,6 +303,10 @@ function buildFieldGroups(){
       fields.push({key:revKey(p.key,s.key,'fact'), label:s.label+' — факт', unit:'₽'});
     });
     groups.push({title:'Выручка · '+p.label, fields});
+  });
+  PRODUCTS.forEach(p=>{
+    const fields = NEW_FUNNEL_STAGES.map(s=>({key:newFunnelKey(p.key,s.key), label:s.label+' ('+s.dept+')', unit:'шт'}));
+    groups.push({title:'Воронка «Новые клиенты» · '+p.label, fields});
   });
   PRODUCTS.forEach(p=>{
     groups.push({title:'Утилизация · '+p.label, fields:[
@@ -584,6 +611,19 @@ function computeUtilization(product, get){
   const pct = (paid!==null && potential) ? (paid/potential*100) : null;
   return {paid, potential, pct};
 }
+// Разложение гэпа утилизации без единого нового поля ввода: остаток в ремонте уже
+// вводится в грузообороте, из него можно приблизительно оценить, сколько тонно/штуко-дней
+// потеряно на ремонте, а остаток гэпа — это тот же дефицит спроса/слабая конверсия,
+// что и в воронке "Новые клиенты" (см. дерево причин в rental_operating_system.md).
+function computeUtilizationGap(product, get){
+  get = get || num;
+  const ut = computeUtilization(product, get);
+  const gap = (ut.paid!==null && ut.potential!==null) ? ut.potential-ut.paid : null;
+  const stock = get(repairStockKey(product));
+  const repairLossEst = (stock!==null) ? stock*7 : null;
+  const demandGap = (gap!==null && repairLossEst!==null) ? gap-repairLossEst : null;
+  return Object.assign({}, ut, {gap, repairLossEst, demandGap});
+}
 function computeTurnover(product, get){
   get = get || num;
   return TURNOVER_STAGES.map(t=>({stage:t, value: get(turnKey(product,t.key))}));
@@ -624,6 +664,37 @@ function computeRepairShare(product, get){
   return {stock, fleet, pct, status};
 }
 const REPAIR_SHARE_BADGE_TEXT = {ok:'в норме', warn:'выше нормы', crit:'критично выше нормы'};
+
+// Воронка "Новые клиенты": лиды → целевые лиды → КП → заказ. Конверсия между соседними
+// этапами и её принадлежность к службе (маркетинг/продажи) — это и есть ответ на "в каком
+// звене случился обрыв", без гадания.
+function computeNewFunnel(product, get){
+  get = get || num;
+  const stages = NEW_FUNNEL_STAGES.map(s=>({stage:s, value:get(newFunnelKey(product,s.key))}));
+  const conversions = [];
+  for(let i=1;i<stages.length;i++){
+    const prev = stages[i-1].value, cur = stages[i].value;
+    conversions.push({from:stages[i-1].stage, to:stages[i].stage, pct:(prev) ? (cur!==null?cur/prev*100:null) : null});
+  }
+  const first = stages[0].value, last = stages[stages.length-1].value;
+  const overallPct = first ? (last!==null?last/first*100:null) : null;
+  return {stages, conversions, overallPct};
+}
+// Сравнение с предыдущей сохранённой неделей (по дате, не по выбору в "Сравнить с периодом") —
+// диагноз "что изменилось с прошлой недели" должен быть доступен всегда, не только когда
+// пользователь вручную выбрал период сравнения.
+function diagnoseNewFunnel(product){
+  const cur = computeNewFunnel(product);
+  const asc = weeksAsc();
+  const idx = currentWeek ? asc.findIndex(w=>w.id===currentWeek.id) : -1;
+  if(idx<=0) return {cur, prevWeek:null, stageDeltas:null, convDeltas:null};
+  const prevWeek = asc[idx-1];
+  const prevGet = getterForWeek(prevWeek.id);
+  const prev = computeNewFunnel(product, prevGet);
+  const stageDeltas = cur.stages.map((s,i)=> (s.value!==null && prev.stages[i].value!==null) ? s.value-prev.stages[i].value : null);
+  const convDeltas = cur.conversions.map((c,i)=> (c.pct!==null && prev.conversions[i].pct!==null) ? c.pct-prev.conversions[i].pct : null);
+  return {cur, prevWeek, stageDeltas, convDeltas};
+}
 
 let openTileKey = null;
 
@@ -716,9 +787,11 @@ const TILE_TITLES = {
   turn_opalubka: 'Грузооборот и парк — опалубка',
   turn_bytovki: 'Грузооборот и парк — бытовки'
 };
+let openFunnelProduct = null;
 function showLevel1(){
   openTileKey = null;
   document.getElementById('level2Screen').style.display='none';
+  document.getElementById('level3Screen').style.display='none';
   document.getElementById('level1Screen').style.display='block';
   renderTiles();
   document.getElementById('level1Screen').scrollIntoView({behavior:'smooth', block:'start'});
@@ -727,11 +800,22 @@ function showLevel2(key){
   openTileKey = key;
   document.getElementById('level2Title').textContent = TILE_TITLES[key] || 'Разбор';
   document.getElementById('level1Screen').style.display='none';
+  document.getElementById('level3Screen').style.display='none';
   document.getElementById('level2Screen').style.display='block';
   renderDrilldown();
   document.getElementById('level2Screen').scrollIntoView({behavior:'smooth', block:'start'});
 }
+function showLevel3(product){
+  openFunnelProduct = product;
+  const p = PRODUCTS.find(x=>x.key===product);
+  document.getElementById('level3Title').textContent = 'Воронка «Новые клиенты» — '+p.label;
+  document.getElementById('level2Screen').style.display='none';
+  document.getElementById('level3Screen').style.display='block';
+  renderLevel3();
+  document.getElementById('level3Screen').scrollIntoView({behavior:'smooth', block:'start'});
+}
 document.getElementById('backToLevel1Btn').addEventListener('click', showLevel1);
+document.getElementById('backToLevel2Btn').addEventListener('click', ()=> showLevel2(openTileKey));
 
 function renderDrilldown(){
   const box = document.getElementById('drilldownArea');
@@ -746,7 +830,8 @@ function renderDrilldown(){
     rows.forEach(r=>{
       const plan=r.plan, fact=r.fact, delta=(plan!==null&&fact!==null)?fact-plan:null;
       const met = delta!==null && delta>=0;
-      h += '<tr><td>'+r.stream.label+'</td><td>'+r.stream.dept+'</td>'
+      const drillable = r.stream.key==='new';
+      h += '<tr'+(drillable?' class="clickable-row" data-funnel-product="'+product+'"':'')+'><td>'+r.stream.label+(drillable?' →':'')+'</td><td>'+r.stream.dept+'</td>'
         + '<td class="num">'+fmtRub(plan)+'</td><td class="num">'+fmtRub(fact)+'</td>'
         + '<td class="num">'+(delta===null?'—':(delta>0?'+':'')+fmtRub(delta))+'</td>'
         + '<td>'+(delta===null?'—':'<span class="badge '+(met?'ok':'miss')+'">'+(met?'план выполнен':'план не выполнен')+'</span>')+'</td></tr>';
@@ -754,6 +839,7 @@ function renderDrilldown(){
     h += '<tr style="font-weight:700;"><td>Итого</td><td>—</td><td class="num">'+fmtRub(planTotal)+'</td><td class="num">'+fmtRub(factTotal)+'</td>'
       + '<td class="num">'+fmtRub(factTotal-planTotal)+'</td><td></td></tr>';
     h += '</tbody></table></div>';
+    h += '<p class="note" style="margin-top:8px;">«Новые клиенты» кликабельны — открывает воронку лид → целевой лид → КП → заказ и показывает, на каком переходе провал. «Собрано по долгу» — разбор по конкретным контрагентам в инструменте СБ: <a href="https://alexxelagrok4-dot.github.io/sb-debt-dynamics/" target="_blank" rel="noopener">sb-debt-dynamics</a>.</p>';
     if(compareValues!==null){
       const was = computeRevenue(product, numWas);
       const d = factTotal-was.factTotal;
@@ -764,7 +850,19 @@ function renderDrilldown(){
       {label:'План', color:'var(--ink-muted)', values: seriesFor(get=>computeRevenue(product,get).planTotal)}
     ], {fmtAxis:v=>nf0.format(Math.round(v)), ariaLabel:'Динамика выручки по неделям, факт и план'});
   } else if(openTileKey==='util_opalubka' || openTileKey==='util_bytovki'){
-    h += '<p class="note">Причины низкой утилизации (дефицит спроса, слабая конверсия КП, оборудования нет в наличии, долгий ремонт/приёмка, простой на объекте) — переиспользуем дерево потерь из <span style="font-family:var(--font-mono);">docs/rental_operating_system.md</span>; отдельный ввод по причинам подключим следующим шагом, когда будет откуда брать эти цифры автоматически.</p>';
+    const gapData = computeUtilizationGap(product);
+    if(gapData.gap===null || gapData.gap<=0){
+      h += '<p class="note">Гэп между потенциалом и оплаченными '+p.unit+'-днями не заполнен или отсутствует — план утилизации выполнен.</p>';
+    } else {
+      const repairShare = gapData.repairLossEst!==null ? Math.min(gapData.repairLossEst, gapData.gap) : null;
+      const otherShare = repairShare!==null ? Math.max(gapData.gap-repairShare,0) : null;
+      h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Из чего складывается недобор</th><th>'+p.unit+'-дни</th><th>Служба</th></tr></thead><tbody>'
+        + '<tr><td>Простой из-за ремонта (остаток в ремонте × 7 дней, оценка)</td><td class="num">'+fmtNum(repairShare,p.unit+'-дн')+'</td><td>Ремонт/приёмка</td></tr>'
+        + '<tr class="clickable-row" data-funnel-product="'+product+'"><td>Не арендовано при готовности — дефицит спроса или слабая конверсия →</td><td class="num">'+fmtNum(otherShare,p.unit+'-дн')+'</td><td>Маркетинг / Продажи</td></tr>'
+        + '<tr style="font-weight:700;"><td>Итого недобор</td><td class="num">'+fmtNum(gapData.gap,p.unit+'-дн')+'</td><td></td></tr>'
+        + '</tbody></table></div>';
+      h += '<p class="note" style="margin-top:8px;">Оценка простоя в ремонте приблизительная (остаток на конец недели × 7, а не средний за неделю). Остаток недобора — открывает ту же воронку «Новые клиенты», что и в разборе выручки: чаще всего это тот же дефицит лидов или слабая конверсия продаж, что бьёт и по выручке, и по утилизации одновременно.</p>';
+    }
     h += chartCard('Динамика утилизации по неделям', [
       {label:'% утилизации', color:'var(--accent)', values: seriesFor(get=>computeUtilization(product,get).pct)}
     ], {fmtAxis:v=>Math.round(v)+'%', ariaLabel:'Динамика утилизации по неделям'});
@@ -790,6 +888,7 @@ function renderDrilldown(){
       + '<tr><td>Приёмка/отгрузка</td><td class="num">'+fmtRub(num(laborFotKey(product,'shipment')))+'</td><td class="num">'+fmtNum(shipUnits,p.unit)+'</td><td class="num">'+fmtRub(cost.shipmentCost)+'</td></tr>'
       + '<tr><td>Ремонт</td><td class="num">'+fmtRub(num(laborFotKey(product,'repair')))+'</td><td class="num">'+fmtNum(repairUnits,p.unit)+'</td><td class="num">'+fmtRub(cost.repairCost)+'</td></tr>'
       + '</tbody></table></div>';
+    h += '<p class="note" style="margin-top:8px;">Себестоимость — это ФОТ, делённый на обработанный объём: та же арифметика, что и в «Загрузке мощностей», только с другой стороны. Если себестоимость выросла — сначала смотрите туда: скорее всего упала загрузка, а не выросла ставка.</p>';
     h += chartCard('Динамика себестоимости операции по неделям', [
       {label:'Приёмка/отгрузка, ₽/'+p.unit, color:'var(--accent)', values: seriesFor(get=>computeCostForProduct(product,get).shipmentCost)},
       {label:'Ремонт, ₽/'+p.unit, color:'var(--accent-2)', values: seriesFor(get=>computeCostForProduct(product,get).repairCost)}
@@ -827,6 +926,74 @@ function renderDrilldown(){
   } else {
     h += '<p class="note">Разбор по этой плитке появится, когда подключим соответствующую детализацию.</p>';
   }
+  box.innerHTML = h;
+  box.querySelectorAll('[data-funnel-product]').forEach(el=>{
+    el.addEventListener('click', ()=> showLevel3(el.dataset.funnelProduct));
+  });
+}
+
+/* ---------- уровень 3: воронка "Новые клиенты" — где именно оборвалось ---------- */
+function renderLevel3(){
+  const box = document.getElementById('level3Area');
+  const product = openFunnelProduct;
+  if(!product) return;
+  const diag = diagnoseNewFunnel(product);
+  const cur = diag.cur;
+  let h = '';
+
+  if(diag.prevWeek){
+    let worstIdx = -1, worstVal = 0;
+    (diag.convDeltas||[]).forEach((d,i)=>{ if(d!==null && d<worstVal){ worstVal=d; worstIdx=i; } });
+    const leadsDelta = diag.stageDeltas ? diag.stageDeltas[0] : null;
+    let msg;
+    if(worstIdx>=0){
+      const c = cur.conversions[worstIdx];
+      msg = 'Сильнее всего просела конверсия «'+c.from.label+' → '+c.to.label+'»: '+(worstVal>0?'+':'')+nf1.format(worstVal)+' п.п. к неделе '+fmtDateShort(diag.prevWeek.week_start)+'.'
+        + ' Зона ответственности: <span class="dept-tag">'+c.to.dept+'</span>.';
+    } else if(leadsDelta!==null && leadsDelta<0){
+      msg = 'Конверсии между этапами не просели, но приток лидов упал на '+Math.abs(leadsDelta)+' к неделе '+fmtDateShort(diag.prevWeek.week_start)+'. Зона ответственности: <span class="dept-tag">Маркетинг</span>.';
+    } else {
+      msg = 'Явного провала на конкретном этапе к прошлой неделе ('+fmtDateShort(diag.prevWeek.week_start)+') не видно — воронка стабильна или улучшилась.';
+    }
+    h += '<div class="diagnosis"><strong>Диагноз недели:</strong> '+msg+'</div>';
+  } else {
+    h += '<p class="note">Для диагноза «что изменилось» нужна ещё одна сохранённая неделя до текущей — пока показываю только состояние воронки.</p>';
+  }
+
+  h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Этап</th><th>Служба</th><th>Значение</th>'
+    + (diag.stageDeltas?'<th>Δ к прошлой неделе</th>':'')
+    + '<th>Конверсия к следующему этапу</th>'
+    + (diag.convDeltas?'<th>Δ конверсии, п.п.</th>':'')
+    + '</tr></thead><tbody>';
+  cur.stages.forEach((s,i)=>{
+    const sd = diag.stageDeltas ? diag.stageDeltas[i] : null;
+    h += '<tr><td>'+s.stage.label+'</td><td>'+s.stage.dept+'</td><td class="num">'+fmtNum(s.value)+'</td>';
+    if(diag.stageDeltas) h += '<td class="num '+(sd===null?'':(sd>0?'num-pos':(sd<0?'num-neg':'')))+'">'+(sd===null?'—':(sd>0?'+':'')+nf1.format(sd))+'</td>';
+    const conv = i<cur.conversions.length ? cur.conversions[i] : null;
+    h += '<td class="num">'+(conv?fmtPct(conv.pct):'—')+'</td>';
+    if(diag.convDeltas){
+      const cd = i<cur.conversions.length ? diag.convDeltas[i] : null;
+      h += '<td class="num '+(cd===null?'':(cd>0?'num-pos':(cd<0?'num-neg':'')))+'">'+(cd===null?'—':(cd>0?'+':'')+nf1.format(cd)+' п.п.')+'</td>';
+    }
+    h += '</tr>';
+  });
+  h += '<tr style="font-weight:700;"><td>Итого (лиды → заказы)</td><td>—</td><td></td>'+(diag.stageDeltas?'<td></td>':'')+'<td class="num">'+(cur.overallPct!==null?fmtPct(cur.overallPct):'—')+'</td>'+(diag.convDeltas?'<td></td>':'')+'</tr>';
+  h += '</tbody></table></div>';
+
+  h += chartCard('Маркетинг: лиды и целевые лиды', [
+    {label:'Лиды', color:'var(--accent)', values: seriesFor(get=>get(newFunnelKey(product,'leads')))},
+    {label:'Целевые лиды', color:'var(--accent-2)', values: seriesFor(get=>get(newFunnelKey(product,'target_leads')))}
+  ], {fmtAxis:v=>Math.round(v), ariaLabel:'Динамика лидов и целевых лидов по неделям'});
+  h += chartCard('Продажи: КП и заказы', [
+    {label:'КП отправлено', color:'var(--accent)', values: seriesFor(get=>get(newFunnelKey(product,'proposals')))},
+    {label:'Заказы', color:'var(--accent-2)', values: seriesFor(get=>get(newFunnelKey(product,'orders')))}
+  ], {fmtAxis:v=>Math.round(v), ariaLabel:'Динамика КП и заказов по неделям'});
+  h += chartCard('Конверсия по этапам, %', NEW_FUNNEL_STAGES.slice(1).map((s,i)=>({
+    label:NEW_FUNNEL_STAGES[i].label+' → '+s.label,
+    color: i===0?'var(--accent)':(i===1?'var(--accent-2)':'var(--ink-2)'),
+    values: seriesFor(get=>computeNewFunnel(product,get).conversions[i].pct)
+  })), {fmtAxis:v=>Math.round(v)+'%', ariaLabel:'Динамика конверсии по этапам воронки'});
+
   box.innerHTML = h;
 }
 
