@@ -149,10 +149,14 @@ table.dyn td.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;
   </div>
 
   <div id="dashboardArea" style="display:none;">
-    <div class="card">
+    <div class="card" id="level1Screen">
       <h2>Показатели недели <span class="hint">кликабельно — план/факт, нажмите на плитку для разбора</span></h2>
       <div class="tile-grid" id="tileGrid"></div>
-      <div class="drilldown" id="drilldownArea" style="display:none;"></div>
+    </div>
+    <div class="card" id="level2Screen" style="display:none;">
+      <button class="btn small" id="backToLevel1Btn">← Назад к показателям</button>
+      <h2 id="level2Title" style="margin:14px 0 0;"></h2>
+      <div class="drilldown" id="drilldownArea"></div>
     </div>
 
     <div class="card">
@@ -322,8 +326,7 @@ async function openWeek(weekId){
   (data||[]).forEach(r=>{ currentValues[r.metric_key] = r.value; });
   document.getElementById('dashboardArea').style.display='block';
   renderEntryForm();
-  renderTiles();
-  document.getElementById('drilldownArea').style.display='none';
+  showLevel1();
 }
 
 /* ---------- entry form ---------- */
@@ -420,24 +423,46 @@ function renderTiles(){
 
   grid.innerHTML = h;
   grid.querySelectorAll('[data-tile]').forEach(el=>{
-    el.addEventListener('click', ()=>{
-      const key = el.dataset.tile;
-      openTileKey = (openTileKey===key) ? null : key;
-      renderTiles();
-      renderDrilldown();
-    });
+    el.addEventListener('click', ()=> showLevel2(el.dataset.tile));
   });
-  renderDrilldown();
 }
+
+/* ---------- навигация между экранами: клик по плитке переводит на отдельный
+   экран разбора (не раскрывает на месте), кнопка «Назад» возвращает к плиткам. ---------- */
+const TILE_TITLES = {
+  rev_opalubka: 'Разбор — Выручка · опалубка',
+  rev_bytovki: 'Разбор — Выручка · бытовки',
+  util_opalubka: 'Разбор — Утилизация · опалубка',
+  util_bytovki: 'Разбор — Утилизация · бытовки',
+  cost: 'Разбор — Себестоимость операции',
+  labor: 'Разбор — Человеко-часы на операции',
+  turn_opalubka: 'Грузооборот — опалубка, т',
+  turn_bytovki: 'Грузооборот — бытовки, шт'
+};
+function showLevel1(){
+  openTileKey = null;
+  document.getElementById('level2Screen').style.display='none';
+  document.getElementById('level1Screen').style.display='block';
+  renderTiles();
+  document.getElementById('level1Screen').scrollIntoView({behavior:'smooth', block:'start'});
+}
+function showLevel2(key){
+  openTileKey = key;
+  document.getElementById('level2Title').textContent = TILE_TITLES[key] || 'Разбор';
+  document.getElementById('level1Screen').style.display='none';
+  document.getElementById('level2Screen').style.display='block';
+  renderDrilldown();
+  document.getElementById('level2Screen').scrollIntoView({behavior:'smooth', block:'start'});
+}
+document.getElementById('backToLevel1Btn').addEventListener('click', showLevel1);
 
 function renderDrilldown(){
   const box = document.getElementById('drilldownArea');
-  if(!openTileKey){ box.style.display='none'; box.innerHTML=''; return; }
+  if(!openTileKey) return;
   let h = '';
   if(openTileKey==='rev_opalubka' || openTileKey==='rev_bytovki'){
     const product = openTileKey==='rev_opalubka' ? 'opalubka' : 'bytovki';
     const {rows, planTotal, factTotal} = computeRevenue(product);
-    h += '<h3 style="font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-2);margin-bottom:8px;">Из чего складывается выручка — '+(product==='opalubka'?'опалубка':'бытовки')+'</h3>';
     h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Поток</th><th>Служба</th><th>План</th><th>Факт</th><th>Δ</th><th>Статус</th></tr></thead><tbody>';
     rows.forEach(r=>{
       const plan=r.plan, fact=r.fact, delta=(plan!==null&&fact!==null)?fact-plan:null;
