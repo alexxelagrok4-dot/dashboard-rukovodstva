@@ -2,53 +2,70 @@
 <style>
 :root{
   color-scheme: light;
-  --bg:#F3F4F1; --surface:#FFFFFF; --surface-2:#ECEEEA; --surface-3:#E3E6E1;
-  --ink:#14181A; --ink-2:#4B534E; --ink-muted:#838A83;
-  --border:rgba(20,24,26,0.12); --border-strong:rgba(20,24,26,0.22);
-  --accent:#2a78d6; --accent-ink:#ffffff;
-  --good:#0ca30c; --warning:#c98500; --critical:#d03b3b;
-  --radius:10px; --radius-sm:6px;
+  --bg:#F4F2EC; --surface:#FFFFFF; --surface-2:#EEEBE1; --surface-3:#E4E0D2;
+  --ink:#1B2028; --ink-2:#4B5266; --ink-muted:#868C9C;
+  --border:rgba(27,32,40,0.11); --border-strong:rgba(27,32,40,0.22);
+  --accent:#1F3A5F; --accent-2:#A9803F; --accent-ink:#ffffff;
+  --good:#1E7145; --warning:#A9760F; --critical:#A23B3B;
+  --good-bg:color-mix(in srgb, var(--good) 14%, transparent);
+  --warning-bg:color-mix(in srgb, var(--warning) 16%, transparent);
+  --critical-bg:color-mix(in srgb, var(--critical) 14%, transparent);
+  --shadow: 0 1px 2px rgba(27,32,40,0.04), 0 6px 20px -8px rgba(27,32,40,0.10);
+  --radius:12px; --radius-sm:7px;
+  --font-display: Georgia,"Iowan Old Style","Palatino Linotype","Book Antiqua",serif;
   --font-ui: system-ui,-apple-system,"Segoe UI",sans-serif;
   --font-mono: ui-monospace,"Cascadia Mono","Consolas","SFMono-Regular",monospace;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     color-scheme: dark;
-    --bg:#12161A; --surface:#1A2024; --surface-2:#202830; --surface-3:#242C34;
-    --ink:#ECEFEC; --ink-2:#A9B2AC; --ink-muted:#7C8680;
-    --border:rgba(255,255,255,0.12); --border-strong:rgba(255,255,255,0.22);
-    --accent:#3987e5; --accent-ink:#08131f;
-    --good:#0ca30c; --warning:#c98500; --critical:#d03b3b;
+    --bg:#12151C; --surface:#1A1F29; --surface-2:#202631; --surface-3:#262D3A;
+    --ink:#ECEEF3; --ink-2:#A9AFC0; --ink-muted:#767C8E;
+    --border:rgba(255,255,255,0.10); --border-strong:rgba(255,255,255,0.20);
+    --accent:#7C9FCB; --accent-2:#CBA55C; --accent-ink:#0C1622;
+    --good:#3FA46A; --warning:#CC9A38; --critical:#D3696B;
+    --good-bg:color-mix(in srgb, var(--good) 18%, transparent);
+    --warning-bg:color-mix(in srgb, var(--warning) 18%, transparent);
+    --critical-bg:color-mix(in srgb, var(--critical) 18%, transparent);
+    --shadow: 0 1px 2px rgba(0,0,0,0.2), 0 6px 20px -8px rgba(0,0,0,0.5);
   }
 }
 :root[data-theme="dark"]{
   color-scheme: dark;
-  --bg:#12161A; --surface:#1A2024; --surface-2:#202830; --surface-3:#242C34;
-  --ink:#ECEFEC; --ink-2:#A9B2AC; --ink-muted:#7C8680;
-  --border:rgba(255,255,255,0.12); --border-strong:rgba(255,255,255,0.22);
-  --accent:#3987e5; --accent-ink:#08131f;
-  --good:#0ca30c; --warning:#c98500; --critical:#d03b3b;
+  --bg:#12151C; --surface:#1A1F29; --surface-2:#202631; --surface-3:#262D3A;
+  --ink:#ECEEF3; --ink-2:#A9AFC0; --ink-muted:#767C8E;
+  --border:rgba(255,255,255,0.10); --border-strong:rgba(255,255,255,0.20);
+  --accent:#7C9FCB; --accent-2:#CBA55C; --accent-ink:#0C1622;
+  --good:#3FA46A; --warning:#CC9A38; --critical:#D3696B;
+  --good-bg:color-mix(in srgb, var(--good) 18%, transparent);
+  --warning-bg:color-mix(in srgb, var(--warning) 18%, transparent);
+  --critical-bg:color-mix(in srgb, var(--critical) 18%, transparent);
+  --shadow: 0 1px 2px rgba(0,0,0,0.2), 0 6px 20px -8px rgba(0,0,0,0.5);
 }
 :root[data-theme="light"]{
   color-scheme: light;
-  --bg:#F3F4F1; --surface:#FFFFFF; --surface-2:#ECEEEA; --surface-3:#E3E6E1;
-  --ink:#14181A; --ink-2:#4B534E; --ink-muted:#838A83;
-  --border:rgba(20,24,26,0.12); --border-strong:rgba(20,24,26,0.22);
-  --accent:#2a78d6; --accent-ink:#ffffff;
-  --good:#0ca30c; --warning:#c98500; --critical:#d03b3b;
+  --bg:#F4F2EC; --surface:#FFFFFF; --surface-2:#EEEBE1; --surface-3:#E4E0D2;
+  --ink:#1B2028; --ink-2:#4B5266; --ink-muted:#868C9C;
+  --border:rgba(27,32,40,0.11); --border-strong:rgba(27,32,40,0.22);
+  --accent:#1F3A5F; --accent-2:#A9803F; --accent-ink:#ffffff;
+  --good:#1E7145; --warning:#A9760F; --critical:#A23B3B;
+  --good-bg:color-mix(in srgb, var(--good) 14%, transparent);
+  --warning-bg:color-mix(in srgb, var(--warning) 16%, transparent);
+  --critical-bg:color-mix(in srgb, var(--critical) 14%, transparent);
+  --shadow: 0 1px 2px rgba(27,32,40,0.04), 0 6px 20px -8px rgba(27,32,40,0.10);
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
 body{background:var(--bg);color:var(--ink);font-family:var(--font-ui);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;}
 h1,h2,h3{text-wrap:balance;margin:0;}
-.app{max-width:1200px;margin:0 auto;padding:28px 24px 80px;}
-header.top{margin-bottom:20px;}
-header.top h1{font-size:24px;font-weight:700;letter-spacing:-0.01em;}
-header.top p{margin:6px 0 0;color:var(--ink-2);font-size:13.5px;max-width:80ch;}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;}
+.app{max-width:1240px;margin:0 auto;padding:32px 24px 90px;}
+header.top{margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--border);}
+header.top h1{font-family:var(--font-display);font-size:27px;font-weight:700;letter-spacing:-0.01em;color:var(--ink);}
+header.top p{margin:8px 0 0;color:var(--ink-2);font-size:13.5px;max-width:80ch;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--shadow);}
 .card + .card{margin-top:16px;}
-.card h2{font-size:12px;text-transform:uppercase;letter-spacing:0.07em;color:var(--ink-2);font-weight:700;margin-bottom:14px;}
-.card h2 .hint{text-transform:none;letter-spacing:0;color:var(--ink-muted);font-weight:400;font-size:12px;margin-left:8px;}
+.card h2{font-family:var(--font-display);font-size:14px;letter-spacing:0.01em;color:var(--ink);font-weight:700;margin-bottom:14px;}
+.card h2 .hint{font-family:var(--font-ui);text-transform:none;letter-spacing:0;color:var(--ink-muted);font-weight:400;font-size:12px;margin-left:8px;}
 .field-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
 .field-row label{color:var(--ink-2);font-size:13px;}
 input[type=number],input[type=text],input[type=date],input[type=email],input[type=password],select{
@@ -61,7 +78,7 @@ input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline
 .btn{appearance:none;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);font:inherit;font-weight:600;font-size:12.5px;padding:7px 13px;border-radius:var(--radius-sm);cursor:pointer;}
 .btn:hover{background:var(--surface-3);}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);}
-.btn.primary:hover{filter:brightness(1.06);}
+.btn.primary:hover{filter:brightness(1.08);}
 .btn.small{padding:4px 9px;font-size:11.5px;}
 .note{font-size:11.5px;color:var(--ink-muted);margin-top:6px;}
 
@@ -78,18 +95,24 @@ input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline
 .userbar .email{font-family:var(--font-mono);}
 
 /* KPI tiles */
-.tile-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.tile-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
 @media (max-width:1000px){.tile-grid{grid-template-columns:repeat(2,1fr);}}
-.tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:13px 15px;cursor:pointer;transition:border-color .1s;}
-.tile:hover{border-color:var(--border-strong);}
+.tile{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:15px 17px 14px;cursor:pointer;box-shadow:var(--shadow);transition:border-color .12s, transform .12s;overflow:hidden;}
+.tile::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);opacity:.55;}
+.tile.status-ok::before{background:var(--good);opacity:.8;}
+.tile.status-warn::before{background:var(--warning);opacity:.9;}
+.tile.status-crit::before{background:var(--critical);opacity:1;}
+.tile:hover{border-color:var(--border-strong);transform:translateY(-1px);}
 .tile.open{border-color:var(--accent);}
 .tile.wide{grid-column:span 2;}
-.tile .label{font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-muted);font-weight:600;margin-bottom:6px;}
-.tile .value{font-family:var(--font-mono);font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-0.01em;}
+.tile .label{font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-muted);font-weight:700;margin-bottom:7px;}
+.tile .value{font-family:var(--font-mono);font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-0.01em;color:var(--ink);}
 .tile .sub{font-size:11px;color:var(--ink-muted);margin-top:4px;}
-.tile .rows{display:flex;flex-direction:column;gap:4px;margin-top:6px;}
-.tile .row{display:flex;justify-content:space-between;font-size:11.5px;font-family:var(--font-mono);color:var(--ink-2);border-top:1px dashed var(--border);padding-top:4px;}
+.tile .rows{display:flex;flex-direction:column;gap:4px;margin-top:7px;}
+.tile .row{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;font-family:var(--font-mono);color:var(--ink-2);border-top:1px dashed var(--border);padding-top:4px;}
 .tile .row:first-child{border-top:none;padding-top:0;}
+.tile .spark{margin-top:9px;line-height:0;color:var(--accent);}
+.tile .spark svg{width:100%;height:30px;display:block;}
 
 /* drilldown */
 .drilldown{margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
@@ -100,13 +123,25 @@ table.dyn thead th{background:var(--surface-2);color:var(--ink-2);font-weight:60
 table.dyn tbody tr:last-child td{border-bottom:none;}
 table.dyn td.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right;}
 .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;}
-.badge.ok{background:color-mix(in srgb, var(--good) 16%, transparent);color:var(--good);}
-.badge.miss{background:color-mix(in srgb, var(--critical) 16%, transparent);color:var(--critical);}
-.badge.warn{background:color-mix(in srgb, var(--warning) 18%, transparent);color:var(--warning);}
+.badge.ok{background:var(--good-bg);color:var(--good);}
+.badge.miss{background:var(--critical-bg);color:var(--critical);}
+.badge.warn{background:var(--warning-bg);color:var(--warning);}
 .badge.crit{background:var(--critical);color:#fff;}
-.tile .delta{font-size:10.5px;margin-top:3px;font-family:var(--font-mono);}
+.tile .delta{font-size:10.5px;margin-top:3px;font-family:var(--font-mono);color:var(--ink-muted);}
 .tile .delta.up{color:var(--critical);}
 .tile .delta.down{color:var(--good);}
+
+/* trend chart (drilldown) */
+.chart-card{margin-top:14px;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px 8px;background:var(--surface-2);}
+.chart-card h3{font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--ink);margin:0 0 4px;}
+.chart-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--ink-2);margin-bottom:8px;}
+.chart-legend .item{display:inline-flex;align-items:center;gap:5px;}
+.chart-legend .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+.chart-legend .dash{width:12px;height:0;border-top:2px dashed currentColor;display:inline-block;}
+.trend-svg{width:100%;height:auto;display:block;}
+.trend-svg text{font-family:var(--font-mono);fill:var(--ink-muted);}
+.trend-svg .gridline{stroke:var(--border);stroke-width:1;}
+.trend-svg .thresholdline{stroke:var(--critical);stroke-width:1.3;stroke-dasharray:4 3;opacity:.75;}
 
 /* entry form */
 .entry-group{margin-bottom:18px;}
@@ -277,10 +312,126 @@ let weeksList = [];
 let currentWeek = null; // {id, week_start}
 let currentValues = {}; // metric_key -> number
 let compareValues = null; // metric_key -> number, null если период сравнения не выбран
+let entriesByWeek = {}; // week_id -> {metric_key: number} — все недели сразу, для графиков динамики
 
 function num(key){ const v = currentValues[key]; return (v===undefined||v===null||v==='') ? null : Number(v); }
 function numWas(key){ if(!compareValues) return null; const v = compareValues[key]; return (v===undefined||v===null||v==='') ? null : Number(v); }
 function sum(keys, get){ get = get || num; return keys.reduce((s,k)=>{ const v=get(k); return s+(v||0); },0); }
+
+/* ---------- динамика по всем неделям: единый источник для спарклайнов на плитках
+   и полных графиков в разборе. Использует те же compute-функции (через get), что и
+   текущая/сравниваемая неделя — формула гарантированно не расходится с плиткой. */
+async function loadAllEntries(){
+  const { data } = await sb.from('dash_entries').select('week_id,metric_key,value');
+  entriesByWeek = {};
+  (data||[]).forEach(r=>{
+    if(!entriesByWeek[r.week_id]) entriesByWeek[r.week_id] = {};
+    entriesByWeek[r.week_id][r.metric_key] = r.value;
+  });
+}
+function getterForWeek(weekId){
+  const vals = entriesByWeek[weekId] || {};
+  return function(key){ const v = vals[key]; return (v===undefined||v===null||v==='') ? null : Number(v); };
+}
+function weeksAsc(){ return weeksList.slice().sort((a,b)=> new Date(a.week_start)-new Date(b.week_start)); }
+function fmtDateShort(dateStr){ return new Date(dateStr).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'}); }
+function seriesFor(valueFn){
+  return weeksAsc().map(w=>({ id:w.id, label: fmtDateShort(w.week_start), value: valueFn(getterForWeek(w.id)) }));
+}
+
+function sparklineSvg(values){
+  const n = values.length;
+  const vals = values.filter(v=>v!==null && isFinite(v));
+  if(vals.length<2) return '';
+  const W=120,H=30,pad=3;
+  let min=Math.min(...vals), max=Math.max(...vals);
+  if(min===max){ min-=1; max+=1; }
+  const xAt = i => pad + (W-2*pad)*i/(n-1);
+  const yAt = v => pad + (H-2*pad) - (v-min)/(max-min)*(H-2*pad);
+  let d='', started=false;
+  values.forEach((v,i)=>{
+    if(v===null||!isFinite(v)){ started=false; return; }
+    d += (started?'L':'M')+xAt(i).toFixed(1)+','+yAt(v).toFixed(1)+' ';
+    started=true;
+  });
+  if(!d) return '';
+  let lastIdx=-1;
+  for(let i=values.length-1;i>=0;i--){ if(values[i]!==null&&isFinite(values[i])){ lastIdx=i; break; } }
+  const dot = lastIdx>=0 ? '<circle cx="'+xAt(lastIdx).toFixed(1)+'" cy="'+yAt(values[lastIdx]).toFixed(1)+'" r="2.4" fill="currentColor"/>' : '';
+  return '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true"><path d="'+d.trim()+'" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'+dot+'</svg>';
+}
+function sparklineFor(valueFn){
+  const series = seriesFor(valueFn);
+  const svg = sparklineSvg(series.map(s=>s.value));
+  return svg ? '<div class="spark">'+svg+'</div>' : '';
+}
+
+// Полный график динамики для экрана разбора: 1-2 линии на общей шкале + опциональные
+// пороговые линии (например 3%/5% доли парка в ремонте, 100% загрузки мощности).
+function svgTrendChart(lines, opts){
+  opts = opts || {};
+  const n = lines[0].values.length;
+  if(n<2) return '<p class="note">Недостаточно сохранённых недель для графика — нужно минимум две.</p>';
+  const W=680,H=210,padL=50,padR=14,padT=14,padB=28;
+  const innerW=W-padL-padR, innerH=H-padT-padB;
+  const thresholds = opts.thresholds||[];
+  const allVals = lines.flatMap(l=>l.values.map(v=>v.value)).filter(v=>v!==null&&isFinite(v)).concat(thresholds.map(t=>t.value));
+  if(!allVals.length) return '<p class="note">Нет данных для графика.</p>';
+  let min=Math.min(...allVals), max=Math.max(...allVals);
+  if(opts.zeroFloor) min = Math.min(min,0);
+  if(min===max){ min-=1; max+=1; }
+  const padV=(max-min)*0.12 || 1;
+  const scaleMin=min-padV, scaleMax=max+padV;
+  const xAt = i => padL + (n<=1?innerW/2:innerW*i/(n-1));
+  const yAt = v => padT + innerH - (v-scaleMin)/(scaleMax-scaleMin)*innerH;
+  const fmtAxis = opts.fmtAxis || (v=>Math.round(v));
+
+  let svg = '<svg class="trend-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+(opts.ariaLabel||'Динамика показателя')+'">';
+  const steps=4;
+  for(let s=0;s<=steps;s++){
+    const v = scaleMin + (scaleMax-scaleMin)*s/steps;
+    const y = yAt(v);
+    svg += '<line class="gridline" x1="'+padL+'" y1="'+y.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+y.toFixed(1)+'"/>';
+    svg += '<text x="'+(padL-8)+'" y="'+(y+3).toFixed(1)+'" text-anchor="end" font-size="9.5">'+fmtAxis(v)+'</text>';
+  }
+  thresholds.forEach(t=>{
+    const y=yAt(t.value);
+    svg += '<line class="thresholdline" x1="'+padL+'" y1="'+y.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+y.toFixed(1)+'"/>';
+  });
+  lines[0].values.forEach((pt,i)=>{
+    svg += '<text x="'+xAt(i).toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle" font-size="9.5">'+pt.label+'</text>';
+  });
+  lines.forEach(line=>{
+    let d='', started=false;
+    line.values.forEach((pt,i)=>{
+      if(pt.value===null||!isFinite(pt.value)){ started=false; return; }
+      d += (started?'L':'M')+xAt(i).toFixed(1)+','+yAt(pt.value).toFixed(1)+' ';
+      started=true;
+    });
+    if(d) svg += '<path d="'+d.trim()+'" fill="none" stroke="'+line.color+'" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>';
+    line.values.forEach((pt,i)=>{
+      if(pt.value===null||!isFinite(pt.value)) return;
+      const isLast = line.values.slice(i+1).every(p=>p.value===null||!isFinite(p.value));
+      svg += '<circle cx="'+xAt(i).toFixed(1)+'" cy="'+yAt(pt.value).toFixed(1)+'" r="'+(isLast?3.2:2.2)+'" fill="'+line.color+'"/>';
+    });
+  });
+  svg += '</svg>';
+  return svg;
+}
+function chartLegend(lines, thresholds){
+  let h = '<div class="chart-legend">';
+  lines.forEach(l=>{ h += '<span class="item"><span class="dot" style="background:'+l.color+';"></span>'+l.label+'</span>'; });
+  (thresholds||[]).forEach(t=>{ h += '<span class="item" style="color:var(--critical);"><span class="dash"></span>'+t.label+'</span>'; });
+  h += '</div>';
+  return h;
+}
+function chartCard(title, lines, opts){
+  opts = opts || {};
+  return '<div class="chart-card"><h3>'+title+'</h3>'
+    + chartLegend(lines, opts.thresholds)
+    + svgTrendChart(lines, opts)
+    + '</div>';
+}
 
 /* ---------- auth ---------- */
 const authScreen = document.getElementById('authScreen');
@@ -324,6 +475,7 @@ sb.auth.onAuthStateChange((event, session)=>{
 async function loadWeeksList(){
   const { data } = await sb.from('dash_weeks').select('id,week_start').order('week_start',{ascending:false});
   weeksList = data||[];
+  await loadAllEntries();
   const sel = document.getElementById('weekSelect');
   if(!weeksList.length){
     sel.innerHTML = '<option value="">— нет сохранённых недель —</option>';
@@ -404,6 +556,11 @@ document.getElementById('saveEntriesBtn').addEventListener('click', async ()=>{
     .map(f=>({ week_id: currentWeek.id, metric_key: f.key, value: currentValues[f.key], updated_by_email: session.user.email }));
   if(!rows.length){ status.textContent='Нечего сохранять — заполните хотя бы одно поле.'; return; }
   const { error } = await sb.from('dash_entries').upsert(rows, { onConflict: 'week_id,metric_key' });
+  if(!error){
+    if(!entriesByWeek[currentWeek.id]) entriesByWeek[currentWeek.id] = {};
+    rows.forEach(r=>{ entriesByWeek[currentWeek.id][r.metric_key] = r.value; });
+    renderTiles();
+  }
   status.textContent = error ? 'Ошибка: '+error.message : 'Сохранено '+rows.length+' значений — '+new Date().toLocaleTimeString('ru-RU');
 });
 
@@ -470,13 +627,15 @@ const REPAIR_SHARE_BADGE_TEXT = {ok:'в норме', warn:'выше нормы',
 
 let openTileKey = null;
 
-function tileHtml(key, label, valueHtml, subHtml, extraRowsHtml, deltaHtml){
+function tileHtml(key, label, valueHtml, subHtml, extraRowsHtml, deltaHtml, statusClass, sparkHtml){
   const active = openTileKey===key;
-  return '<div class="tile'+(active?' open':'')+'" data-tile="'+key+'">'
+  const cls = 'tile'+(active?' open':'')+(statusClass?' '+statusClass:'');
+  return '<div class="'+cls+'" data-tile="'+key+'">'
     + '<div class="label">'+label+'</div>'
     + '<div class="value">'+valueHtml+'</div>'
     + (subHtml?'<div class="sub">'+subHtml+'</div>':'')
     + (deltaHtml||'')
+    + (sparkHtml||'')
     + (extraRowsHtml?'<div class="rows">'+extraRowsHtml+'</div>':'')
     + '</div>';
 }
@@ -495,16 +654,19 @@ function renderTiles(){
 
   PRODUCTS.forEach(p=>{
     const rev = computeRevenue(p.key), revWas = computeRevenue(p.key, numWas);
+    const status = (rev.factTotal===null||rev.planTotal===null) ? '' : (rev.factTotal>=rev.planTotal ? 'status-ok' : 'status-crit');
+    const spark = sparklineFor(get=>computeRevenue(p.key,get).factTotal);
     h += tileHtml('rev_'+p.key, 'Выручка — '+p.label,
       fmtRub(rev.factTotal), 'план '+fmtRub(rev.planTotal),
-      null, deltaLine(rev.factTotal, revWas.factTotal, fmtRub));
+      null, deltaLine(rev.factTotal, revWas.factTotal, fmtRub), status, spark);
   });
 
   PRODUCTS.forEach(p=>{
     const ut = computeUtilization(p.key), utWas = computeUtilization(p.key, numWas);
+    const spark = sparklineFor(get=>computeUtilization(p.key,get).pct);
     h += tileHtml('util_'+p.key, 'Утилизация — '+p.label,
       fmtPct(ut.pct), fmtNum(ut.paid,p.unit+'-дн')+' из '+fmtNum(ut.potential,p.unit+'-дн'),
-      null, deltaLine(ut.pct, utWas.pct, fmtPct));
+      null, deltaLine(ut.pct, utWas.pct, fmtPct), '', spark);
   });
 
   PRODUCTS.forEach(p=>{
@@ -517,9 +679,11 @@ function renderTiles(){
 
   PRODUCTS.forEach(p=>{
     const cost = computeCostForProduct(p.key);
+    const spark = sparklineFor(get=>computeCostForProduct(p.key,get).shipmentCost);
     h += tileHtml('cost_'+p.key, 'Себестоимость операции — '+p.label,
       fmtRub(cost.shipmentCost)+' / '+fmtRub(cost.repairCost),
-      'приёмка-отгрузка / ремонт, ₽ за '+(p.unit==='т'?'тонну':'штуку'));
+      'приёмка-отгрузка / ремонт, ₽ за '+(p.unit==='т'?'тонну':'штуку'),
+      null, '', '', spark);
   });
 
   PRODUCTS.forEach(p=>{
@@ -528,7 +692,8 @@ function renderTiles(){
     let rows = turn.map(t=>'<div class="row"><span>'+t.stage.label+'</span><span>'+fmtNum(t.value,p.unit)+'</span></div>').join('');
     const badge = share.status ? '<span class="badge '+share.status+'">'+REPAIR_SHARE_BADGE_TEXT[share.status]+'</span>' : '';
     rows += '<div class="row"><span>% парка в ремонте '+badge+'</span><span>'+fmtPct(share.pct)+'</span></div>';
-    h += '<div class="tile wide" data-tile="turn_'+p.key+'"><div class="label">Грузооборот — '+p.label+', '+p.unit+'</div><div class="rows">'+rows+'</div></div>';
+    const statusClass = share.status ? 'status-'+share.status : '';
+    h += '<div class="tile wide '+statusClass+'" data-tile="turn_'+p.key+'"><div class="label">Грузооборот — '+p.label+', '+p.unit+'</div><div class="rows">'+rows+'</div></div>';
   });
 
   grid.innerHTML = h;
@@ -594,8 +759,15 @@ function renderDrilldown(){
       const d = factTotal-was.factTotal;
       h += '<p class="note" style="margin-top:10px;">Было в сравниваемом периоде: факт '+fmtRub(was.factTotal)+', план '+fmtRub(was.planTotal)+'. Δ факта к тому периоду: '+(d>0?'+':'')+fmtRub(d)+'.</p>';
     }
+    h += chartCard('Динамика по неделям', [
+      {label:'Факт', color:'var(--accent)', values: seriesFor(get=>computeRevenue(product,get).factTotal)},
+      {label:'План', color:'var(--ink-muted)', values: seriesFor(get=>computeRevenue(product,get).planTotal)}
+    ], {fmtAxis:v=>nf0.format(Math.round(v)), ariaLabel:'Динамика выручки по неделям, факт и план'});
   } else if(openTileKey==='util_opalubka' || openTileKey==='util_bytovki'){
     h += '<p class="note">Причины низкой утилизации (дефицит спроса, слабая конверсия КП, оборудования нет в наличии, долгий ремонт/приёмка, простой на объекте) — переиспользуем дерево потерь из <span style="font-family:var(--font-mono);">docs/rental_operating_system.md</span>; отдельный ввод по причинам подключим следующим шагом, когда будет откуда брать эти цифры автоматически.</p>';
+    h += chartCard('Динамика утилизации по неделям', [
+      {label:'% утилизации', color:'var(--accent)', values: seriesFor(get=>computeUtilization(product,get).pct)}
+    ], {fmtAxis:v=>Math.round(v)+'%', ariaLabel:'Динамика утилизации по неделям'});
   } else if(openTileKey==='capacity_opalubka' || openTileKey==='capacity_bytovki'){
     h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Этап</th><th>Человеко-часы</th><th>Норма, '+p.unit+'/чел-час</th><th>План (100% мощности), '+p.unit+'</th><th>Факт, '+p.unit+'</th><th>% загрузки</th></tr></thead><tbody>';
     CAPACITY_STAGES.forEach(st=>{
@@ -606,6 +778,10 @@ function renderDrilldown(){
     });
     h += '</tbody></table></div>';
     h += '<p class="note" style="margin-top:8px;">План — не ручной ввод, а расчёт: человеко-часы × норма на человеко-час = 100% доступной мощности за неделю. Факт ниже плана — либо не хватает рук, либо фактическая выработка ниже норматива.</p>';
+    h += chartCard('Динамика загрузки мощностей по неделям', [
+      {label:CAPACITY_STAGES[0].label, color:'var(--accent)', values: seriesFor(get=>computeCapacity(product,'shipment',get).pct)},
+      {label:CAPACITY_STAGES[1].label, color:'var(--accent-2)', values: seriesFor(get=>computeCapacity(product,'repair',get).pct)}
+    ], {thresholds:[{value:100,label:'100% мощности'}], fmtAxis:v=>Math.round(v)+'%', ariaLabel:'Динамика загрузки мощностей по неделям'});
   } else if(openTileKey==='cost_opalubka' || openTileKey==='cost_bytovki'){
     const cost = computeCostForProduct(product);
     const shipUnits = (num(turnKey(product,'shipped'))||0) + (num(turnKey(product,'received'))||0);
@@ -614,6 +790,10 @@ function renderDrilldown(){
       + '<tr><td>Приёмка/отгрузка</td><td class="num">'+fmtRub(num(laborFotKey(product,'shipment')))+'</td><td class="num">'+fmtNum(shipUnits,p.unit)+'</td><td class="num">'+fmtRub(cost.shipmentCost)+'</td></tr>'
       + '<tr><td>Ремонт</td><td class="num">'+fmtRub(num(laborFotKey(product,'repair')))+'</td><td class="num">'+fmtNum(repairUnits,p.unit)+'</td><td class="num">'+fmtRub(cost.repairCost)+'</td></tr>'
       + '</tbody></table></div>';
+    h += chartCard('Динамика себестоимости операции по неделям', [
+      {label:'Приёмка/отгрузка, ₽/'+p.unit, color:'var(--accent)', values: seriesFor(get=>computeCostForProduct(product,get).shipmentCost)},
+      {label:'Ремонт, ₽/'+p.unit, color:'var(--accent-2)', values: seriesFor(get=>computeCostForProduct(product,get).repairCost)}
+    ], {fmtAxis:v=>nf0.format(Math.round(v)), ariaLabel:'Динамика себестоимости операции по неделям'});
   } else if(openTileKey==='turn_opalubka' || openTileKey==='turn_bytovki'){
     const turn = computeTurnover(product);
     const share = computeRepairShare(product);
@@ -633,6 +813,17 @@ function renderDrilldown(){
       + '<td class="num">'+fmtPct(share.pct)+'</td><td class="num">≤'+REPAIR_SHARE_WARN+'%</td>'
       + '<td>'+(share.status?'<span class="badge '+share.status+'">'+REPAIR_SHARE_BADGE_TEXT[share.status]+'</span>':'—')+'</td></tr>'
       + '</tbody></table></div>';
+    h += chartCard('Грузооборот: отгрузка и приёмка', [
+      {label:'Отгружено', color:'var(--accent)', values: seriesFor(get=>get(turnKey(product,'shipped')))},
+      {label:'Принято (возврат)', color:'var(--accent-2)', values: seriesFor(get=>get(turnKey(product,'received')))}
+    ], {fmtAxis:v=>nf0.format(Math.round(v)), ariaLabel:'Динамика отгрузки и приёмки по неделям'});
+    h += chartCard('Поток ремонта', [
+      {label:'Поступило в ремонт', color:'var(--accent)', values: seriesFor(get=>get(turnKey(product,'to_repair')))},
+      {label:'Вышло из ремонта', color:'var(--accent-2)', values: seriesFor(get=>get(turnKey(product,'from_repair')))}
+    ], {fmtAxis:v=>nf0.format(Math.round(v)), ariaLabel:'Динамика потока ремонта по неделям'});
+    h += chartCard('Доля парка в ремонте', [
+      {label:'% парка в ремонте', color:'var(--accent)', values: seriesFor(get=>computeRepairShare(product,get).pct)}
+    ], {thresholds:[{value:REPAIR_SHARE_WARN,label:'норма ≤'+REPAIR_SHARE_WARN+'%'},{value:REPAIR_SHARE_CRIT,label:'критично >'+REPAIR_SHARE_CRIT+'%'}], zeroFloor:true, fmtAxis:v=>(Math.round(v*10)/10)+'%', ariaLabel:'Динамика доли парка в ремонте по неделям'});
   } else {
     h += '<p class="note">Разбор по этой плитке появится, когда подключим соответствующую детализацию.</p>';
   }

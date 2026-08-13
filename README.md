@@ -62,8 +62,8 @@ create policy "update for authenticated" on public.dash_entries for update using
 -- SQL Editor не выдаёт права роли authenticated автоматически (в отличие от Table
 -- Editor). Без этого блока запросы падают с "permission denied", даже когда RLS
 -- настроена верно.
-grant select, insert, update on public.dash_weeks to authenticated;
-grant select, insert, update on public.dash_entries to authenticated;
+grant select, insert, update, delete on public.dash_weeks to authenticated;
+grant select, insert, update, delete on public.dash_entries to authenticated;
 ```
 
 Значения хранятся построчно (метрика → число за неделю), а не жёсткими колонками — так проще добавлять новые показатели позже (например, ветку лидов), не меняя структуру таблицы и не требуя миграций.
@@ -79,7 +79,7 @@ grant select, insert, update on public.dash_entries to authenticated;
 
 «Себестоимость операции» и «% загрузки мощностей» не вводятся вручную — вычисляются:
 
-```
+```text
 план мощности (100%) = человеко-часы × норма
 % загрузки = факт / план мощности × 100
 себестоимость, ₽/ед = ФОТ / обработанный объём
