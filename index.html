@@ -119,6 +119,10 @@ input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline
 .tile .spark svg{width:100%;height:30px;display:block;}
 
 /* drilldown */
+.drill-nav{position:sticky;top:0;z-index:5;display:flex;gap:8px;align-items:center;background:var(--surface);margin:-20px -22px 16px;padding:14px 22px;border-bottom:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0;box-shadow:0 2px 10px rgba(0,0,0,0.06);}
+.back-btn{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700;font-size:13px;padding:8px 16px;}
+.back-btn:hover{filter:brightness(1.08);background:var(--accent);}
+.back-btn-secondary{background:var(--surface-2);color:var(--ink-2);font-size:12px;padding:7px 13px;}
 .drilldown{margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
 .table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);}
 table.dyn{border-collapse:collapse;width:100%;font-size:12.5px;}
@@ -229,12 +233,17 @@ tr.clickable-row:hover .row-link{text-decoration:underline;}
       <div class="tile-grid" id="tileGrid"></div>
     </div>
     <div class="card" id="level2Screen" style="display:none;">
-      <button class="btn small" id="backToLevel1Btn">← Назад к показателям</button>
+      <div class="drill-nav">
+        <button class="btn back-btn" id="backToLevel1Btn">← Назад к дашборду</button>
+      </div>
       <h2 id="level2Title" style="margin:14px 0 0;"></h2>
       <div class="drilldown" id="drilldownArea"></div>
     </div>
     <div class="card" id="level3Screen" style="display:none;">
-      <button class="btn small" id="backToLevel2Btn">← Назад к выручке</button>
+      <div class="drill-nav">
+        <button class="btn back-btn" id="backToLevel1BtnFromL3">← Назад к дашборду</button>
+        <button class="btn back-btn-secondary" id="backToLevel2Btn">← к разбору выручки</button>
+      </div>
       <h2 id="level3Title" style="margin:14px 0 0;"></h2>
       <div class="drilldown" id="level3Area"></div>
     </div>
@@ -918,6 +927,9 @@ function showLevel2(key){
 }
 function showLevel3(product){
   openFunnelProduct = product;
+  // Открыть можно и напрямую с плитки "На что смотреть" (минуя уровень 2) — фиксируем
+  // openTileKey здесь же, иначе кнопка "к разбору выручки" не будет знать, куда вести.
+  openTileKey = 'rev_'+product;
   const p = PRODUCTS.find(x=>x.key===product);
   document.getElementById('level3Title').textContent = 'Воронка «Новые клиенты» — '+p.label;
   document.getElementById('level2Screen').style.display='none';
@@ -927,6 +939,7 @@ function showLevel3(product){
   document.getElementById('level3Screen').scrollIntoView({behavior:'smooth', block:'start'});
 }
 document.getElementById('backToLevel1Btn').addEventListener('click', showLevel1);
+document.getElementById('backToLevel1BtnFromL3').addEventListener('click', showLevel1);
 document.getElementById('backToLevel2Btn').addEventListener('click', ()=> showLevel2(openTileKey));
 
 function renderDrilldown(){
