@@ -136,6 +136,19 @@ tr.clickable-row:hover .row-link{text-decoration:underline;}
 .diagnosis{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:12.5px;color:var(--ink-2);margin-bottom:12px;}
 .diagnosis strong{color:var(--ink);}
 .diagnosis .dept-tag{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--accent-2);margin-left:4px;}
+
+/* executive alert strip */
+.alert-strip h2{color:var(--ink);}
+.alert-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:var(--radius-sm);cursor:pointer;transition:background .1s;}
+.alert-item:hover{background:var(--surface-2);}
+.alert-item + .alert-item{margin-top:2px;}
+.alert-item .dot{flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:var(--warning);}
+.alert-item.crit .dot{background:var(--critical);}
+.alert-item .text{flex:1;font-size:13px;color:var(--ink-2);}
+.alert-item .text strong{color:var(--ink);font-weight:700;}
+.alert-item .go{flex:0 0 auto;color:var(--accent);font-weight:700;font-size:16px;opacity:.6;}
+.alert-item:hover .go{opacity:1;}
+.alert-strip .all-clear{font-size:13px;color:var(--good);font-weight:600;padding:6px 4px;}
 .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;}
 .badge.ok{background:var(--good-bg);color:var(--good);}
 .badge.miss{background:var(--critical-bg);color:var(--critical);}
@@ -207,6 +220,10 @@ tr.clickable-row:hover .row-link{text-decoration:underline;}
   </div>
 
   <div id="dashboardArea" style="display:none;">
+    <div class="card alert-strip" id="alertStripCard" style="display:none;">
+      <h2>На что смотреть на этой неделе</h2>
+      <div id="alertStripBody"></div>
+    </div>
     <div class="card" id="level1Screen">
       <h2>Показатели недели <span class="hint">кликабельно — план/факт, нажмите на плитку для разбора</span></h2>
       <div class="tile-grid" id="tileGrid"></div>
@@ -687,20 +704,105 @@ function computeNewFunnel(product, get){
   const overallPct = first ? (last!==null?last/first*100:null) : null;
   return {stages, conversions, overallPct};
 }
-// Сравнение с предыдущей сохранённой неделей (по дате, не по выбору в "Сравнить с периодом") —
-// диагноз "что изменилось с прошлой недели" должен быть доступен всегда, не только когда
-// пользователь вручную выбрал период сравнения.
-function diagnoseNewFunnel(product){
-  const cur = computeNewFunnel(product);
+// Предыдущая сохранённая неделя (по дате, не по выбору в "Сравнить с периодом") — диагноз
+// "что изменилось с прошлой недели" должен работать всегда, не только когда пользователь
+// вручную выбрал период сравнения. Используется и воронкой, и сводкой "на что смотреть".
+function prevWeekInfo(){
   const asc = weeksAsc();
   const idx = currentWeek ? asc.findIndex(w=>w.id===currentWeek.id) : -1;
-  if(idx<=0) return {cur, prevWeek:null, stageDeltas:null, convDeltas:null};
-  const prevWeek = asc[idx-1];
-  const prevGet = getterForWeek(prevWeek.id);
-  const prev = computeNewFunnel(product, prevGet);
+  if(idx<=0) return null;
+  const week = asc[idx-1];
+  return {week, get: getterForWeek(week.id)};
+}
+function diagnoseNewFunnel(product){
+  const cur = computeNewFunnel(product);
+  const pw = prevWeekInfo();
+  if(!pw) return {cur, prevWeek:null, stageDeltas:null, convDeltas:null};
+  const prevWeek = pw.week;
+  const prev = computeNewFunnel(product, pw.get);
   const stageDeltas = cur.stages.map((s,i)=> (s.value!==null && prev.stages[i].value!==null) ? s.value-prev.stages[i].value : null);
   const convDeltas = cur.conversions.map((c,i)=> (c.pct!==null && prev.conversions[i].pct!==null) ? c.pct-prev.conversions[i].pct : null);
   return {cur, prevWeek, stageDeltas, convDeltas};
+}
+
+// Сводка "на что смотреть" — не отдельная метрика, а переиспользование уже посчитанных
+// сигналов (план/факт по выручке, пороги доли парка в ремонте, провал конверсии в воронке,
+// рост себестоимости и снижение утилизации к прошлой неделе). Никаких новых порогов не
+// придумываю — только то, что уже определено в остальном дашборде.
+const ALERT_KIND_PRIORITY = {revenue:0, repair:1, funnel:2, cost:3, utilization:4};
+function computeWeekAlerts(){
+  const alerts = [];
+  PRODUCTS.forEach(p=>{
+    const rev = computeRevenue(p.key);
+    if(rev.planTotal && rev.factTotal!==null && rev.factTotal<rev.planTotal){
+      alerts.push({kind:'revenue', severity:'warn',
+        text:'Выручка — <strong>'+p.label+'</strong>: не хватает '+fmtRub(rev.planTotal-rev.factTotal)+' до плана.',
+        action:()=>showLevel2('rev_'+p.key)});
+    }
+  });
+  PRODUCTS.forEach(p=>{
+    const share = computeRepairShare(p.key);
+    if(share.status==='warn' || share.status==='crit'){
+      alerts.push({kind:'repair', severity:share.status,
+        text:'Доля парка в ремонте — <strong>'+p.label+'</strong>: '+fmtPct(share.pct)+' ('+REPAIR_SHARE_BADGE_TEXT[share.status]+').',
+        action:()=>showLevel2('turn_'+p.key)});
+    }
+  });
+  PRODUCTS.forEach(p=>{
+    const diag = diagnoseNewFunnel(p.key);
+    if(diag.convDeltas){
+      let worstIdx=-1, worstVal=0;
+      diag.convDeltas.forEach((d,i)=>{ if(d!==null && d<worstVal){ worstVal=d; worstIdx=i; } });
+      if(worstIdx>=0){
+        const c = diag.cur.conversions[worstIdx];
+        alerts.push({kind:'funnel', severity:'warn',
+          text:'Воронка «Новые» — <strong>'+p.label+'</strong>: конверсия «'+c.from.label+' → '+c.to.label+'» просела на '+nf1.format(Math.abs(worstVal))+' п.п. ('+c.to.dept+').',
+          action:()=>showLevel3(p.key)});
+      }
+    }
+  });
+  const pw = prevWeekInfo();
+  if(pw){
+    PRODUCTS.forEach(p=>{
+      const cost = computeCostForProduct(p.key), was = computeCostForProduct(p.key, pw.get);
+      if(cost.shipmentCost!==null && was.shipmentCost && cost.shipmentCost>was.shipmentCost){
+        const pctUp = (cost.shipmentCost-was.shipmentCost)/was.shipmentCost*100;
+        alerts.push({kind:'cost', severity:'warn',
+          text:'Себестоимость — <strong>'+p.label+'</strong>: выросла на '+nf1.format(pctUp)+'% к прошлой неделе.',
+          action:()=>showLevel2('cost_'+p.key)});
+      }
+      const ut = computeUtilization(p.key), utWas = computeUtilization(p.key, pw.get);
+      if(ut.pct!==null && utWas.pct!==null && ut.pct<utWas.pct){
+        alerts.push({kind:'utilization', severity:'warn',
+          text:'Утилизация — <strong>'+p.label+'</strong>: снизилась на '+nf1.format(utWas.pct-ut.pct)+' п.п. к прошлой неделе.',
+          action:()=>showLevel2('util_'+p.key)});
+      }
+    });
+  }
+  alerts.sort((a,b)=>{
+    const sevA = a.severity==='crit'?0:1, sevB = b.severity==='crit'?0:1;
+    if(sevA!==sevB) return sevA-sevB;
+    return ALERT_KIND_PRIORITY[a.kind]-ALERT_KIND_PRIORITY[b.kind];
+  });
+  return alerts.slice(0,3);
+}
+function renderWeekAlerts(){
+  const card = document.getElementById('alertStripCard');
+  const body = document.getElementById('alertStripBody');
+  if(!currentWeek){ card.style.display='none'; return; }
+  const alerts = computeWeekAlerts();
+  card.style.display='block';
+  if(!alerts.length){
+    body.innerHTML = '<div class="all-clear">Существенных отклонений не выявлено — неделя в пределах плана.</div>';
+    return;
+  }
+  body.innerHTML = alerts.map((a,i)=>
+    '<div class="alert-item '+(a.severity==='crit'?'crit':'')+'" data-alert-idx="'+i+'"><span class="dot"></span><span class="text">'+a.text+'</span><span class="go">›</span></div>'
+  ).join('');
+  body.querySelectorAll('[data-alert-idx]').forEach(el=>{
+    const idx = Number(el.dataset.alertIdx);
+    el.addEventListener('click', ()=> alerts[idx].action());
+  });
 }
 
 let openTileKey = null;
@@ -801,6 +903,7 @@ function showLevel1(){
   document.getElementById('level3Screen').style.display='none';
   document.getElementById('level1Screen').style.display='block';
   renderTiles();
+  renderWeekAlerts();
   document.getElementById('level1Screen').scrollIntoView({behavior:'smooth', block:'start'});
 }
 function showLevel2(key){
@@ -808,6 +911,7 @@ function showLevel2(key){
   document.getElementById('level2Title').textContent = TILE_TITLES[key] || 'Разбор';
   document.getElementById('level1Screen').style.display='none';
   document.getElementById('level3Screen').style.display='none';
+  document.getElementById('alertStripCard').style.display='none';
   document.getElementById('level2Screen').style.display='block';
   renderDrilldown();
   document.getElementById('level2Screen').scrollIntoView({behavior:'smooth', block:'start'});
@@ -817,6 +921,7 @@ function showLevel3(product){
   const p = PRODUCTS.find(x=>x.key===product);
   document.getElementById('level3Title').textContent = 'Воронка «Новые клиенты» — '+p.label;
   document.getElementById('level2Screen').style.display='none';
+  document.getElementById('alertStripCard').style.display='none';
   document.getElementById('level3Screen').style.display='block';
   renderLevel3();
   document.getElementById('level3Screen').scrollIntoView({behavior:'smooth', block:'start'});
