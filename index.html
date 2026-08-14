@@ -181,6 +181,7 @@ tr.clickable-row:hover .row-link{text-decoration:underline;}
 .entry-field{display:flex;flex-direction:column;gap:4px;}
 .entry-field label{font-size:11.5px;color:var(--ink-2);}
 .entry-field input{width:100%;}
+.field-dept{margin:-2px 0 0;}
 </style>
 
 <div id="authScreen" class="auth-screen">
@@ -291,17 +292,17 @@ const PRODUCTS = [
   {key:'bytovki', label:'Бытовки', unit:'шт'}
 ];
 const TURNOVER_STAGES = [
-  {key:'shipped', label:'Отгружено'},
-  {key:'received', label:'Принято (возврат)'},
-  {key:'to_repair', label:'Поступило в ремонт'},
-  {key:'from_repair', label:'Вышло из ремонта'}
+  {key:'shipped', label:'Отгружено', dept:'Логистика/Склад'},
+  {key:'received', label:'Принято (возврат)', dept:'Логистика/Склад'},
+  {key:'to_repair', label:'Поступило в ремонт', dept:'Ремонт'},
+  {key:'from_repair', label:'Вышло из ремонта', dept:'Ремонт'}
 ];
 // Мощности считаются раздельно по продуктам (одна бригада работает и с опалубкой, и
 // с бытовками, но нормы т/чел-час и шт/чел-час разные единицы — поэтому и часы, и ФОТ,
 // и норма вводятся отдельно на каждый продукт, а не одним общим числом на бригаду).
 const CAPACITY_STAGES = [
-  {key:'shipment', label:'Приёмка/отгрузка'},
-  {key:'repair', label:'Ремонт'}
+  {key:'shipment', label:'Приёмка/отгрузка', dept:'Логистика/Склад'},
+  {key:'repair', label:'Ремонт', dept:'Ремонт'}
 ];
 // Порог доли парка в ремонте: план — не более 3%; выше — предупреждение; выше 5% — критично.
 const REPAIR_SHARE_WARN = 3, REPAIR_SHARE_CRIT = 5;
@@ -332,33 +333,33 @@ function buildFieldGroups(){
   PRODUCTS.forEach(p=>{
     const fields = [];
     REVENUE_STREAMS.forEach(s=>{
-      fields.push({key:revKey(p.key,s.key,'plan'), label:s.label+' — план', unit:'₽'});
-      fields.push({key:revKey(p.key,s.key,'fact'), label:s.label+' — факт', unit:'₽'});
+      fields.push({key:revKey(p.key,s.key,'plan'), label:s.label+' — план', unit:'₽', dept:s.dept});
+      fields.push({key:revKey(p.key,s.key,'fact'), label:s.label+' — факт', unit:'₽', dept:s.dept});
     });
     groups.push({title:'Выручка · '+p.label, fields});
   });
   PRODUCTS.forEach(p=>{
-    const fields = NEW_FUNNEL_STAGES.map(s=>({key:newFunnelKey(p.key,s.key), label:s.label+' ('+s.dept+')', unit:'шт'}));
+    const fields = NEW_FUNNEL_STAGES.map(s=>({key:newFunnelKey(p.key,s.key), label:s.label, unit:'шт', dept:s.dept}));
     groups.push({title:'Воронка «Новые клиенты» · '+p.label, fields});
   });
   PRODUCTS.forEach(p=>{
     groups.push({title:'Утилизация · '+p.label, fields:[
-      {key:utilKey(p.key,'paid'), label:'Оплаченные '+(p.unit==='т'?'тонно':'штуко')+'-дни', unit:p.unit+'-дн'},
-      {key:utilKey(p.key,'potential'), label:'Потенциал парка, '+(p.unit==='т'?'тонно':'штуко')+'-дни', unit:p.unit+'-дн'}
+      {key:utilKey(p.key,'paid'), label:'Оплаченные '+(p.unit==='т'?'тонно':'штуко')+'-дни', unit:p.unit+'-дн', dept:'Коммерческий директор'},
+      {key:utilKey(p.key,'potential'), label:'Потенциал парка, '+(p.unit==='т'?'тонно':'штуко')+'-дни', unit:p.unit+'-дн', dept:'Коммерческий директор'}
     ]});
   });
   PRODUCTS.forEach(p=>{
-    const fields = TURNOVER_STAGES.map(t=>({key:turnKey(p.key,t.key), label:t.label, unit:p.unit}));
-    fields.push({key:repairStockKey(p.key), label:'Сейчас в ремонте (остаток)', unit:p.unit});
-    fields.push({key:fleetTotalKey(p.key), label:'Общий парк', unit:p.unit});
+    const fields = TURNOVER_STAGES.map(t=>({key:turnKey(p.key,t.key), label:t.label, unit:p.unit, dept:t.dept}));
+    fields.push({key:repairStockKey(p.key), label:'Сейчас в ремонте (остаток)', unit:p.unit, dept:'Ремонт'});
+    fields.push({key:fleetTotalKey(p.key), label:'Общий парк', unit:p.unit, dept:'Логистика/Склад'});
     groups.push({title:'Грузооборот и парк · '+p.label, fields});
   });
   PRODUCTS.forEach(p=>{
     const fields = [];
     CAPACITY_STAGES.forEach(st=>{
-      fields.push({key:laborHoursKey(p.key,st.key), label:'Человеко-часы: '+st.label, unit:'ч'});
-      fields.push({key:laborFotKey(p.key,st.key), label:'ФОТ: '+st.label+', за неделю', unit:'₽'});
-      fields.push({key:normKey(p.key,st.key), label:'Норма: '+st.label, unit:p.unit+'/чел-час'});
+      fields.push({key:laborHoursKey(p.key,st.key), label:'Человеко-часы: '+st.label, unit:'ч', dept:st.dept});
+      fields.push({key:laborFotKey(p.key,st.key), label:'ФОТ: '+st.label+', за неделю', unit:'₽', dept:st.dept});
+      fields.push({key:normKey(p.key,st.key), label:'Норма: '+st.label, unit:p.unit+'/чел-час', dept:st.dept});
     });
     groups.push({title:'Мощности, ФОТ и нормы · '+p.label, fields});
   });
@@ -373,6 +374,7 @@ let currentWeek = null; // {id, week_start}
 let currentValues = {}; // metric_key -> number
 let compareValues = null; // metric_key -> number, null если период сравнения не выбран
 let entriesByWeek = {}; // week_id -> {metric_key: number} — все недели сразу, для графиков динамики
+let sbRiskSeries = []; // [{reportDate, tons}] — тоннаж в просрочке 29+ по каждой выгрузке СБ-инструмента
 
 function num(key){ const v = currentValues[key]; return (v===undefined||v===null||v==='') ? null : Number(v); }
 function numWas(key){ if(!compareValues) return null; const v = compareValues[key]; return (v===undefined||v===null||v==='') ? null : Number(v); }
@@ -525,11 +527,27 @@ sb.auth.onAuthStateChange((event, session)=>{
     appRoot.style.display='block';
     userEmailEl.textContent = emailToLogin(session.user.email);
     loadWeeksList();
+    loadSbRiskSeries();
   } else {
     authScreen.style.display='flex';
     appRoot.style.display='none';
   }
 });
+
+/* ---------- тоннаж в просрочке 29+ (СБ-инструмент, тот же Supabase-проект) ----------
+   Не отдельная ручная метрика — читается напрямую из таблиц sb_uploads/sb_snapshots,
+   которые уже ведёт инструмент "Продление-Взыскание". "bucket" там уже классифицирован
+   при загрузке отчёта из 1С, пересчитывать классификацию здесь не нужно и рискованно
+   (в СБ-инструменте она сложнее — учитывает действия/погашения, дублировать эту логику
+   в двух местах — верный способ снова словить расхождение, как уже было один раз). */
+async function loadSbRiskSeries(){
+  const { data: uploads } = await sb.from('sb_uploads').select('id,report_date').order('report_date',{ascending:true});
+  if(!uploads || !uploads.length){ sbRiskSeries = []; return; }
+  const { data: rows } = await sb.from('sb_snapshots').select('upload_id,weight_kg').eq('bucket','29+');
+  const tonsByUpload = {};
+  (rows||[]).forEach(r=>{ tonsByUpload[r.upload_id] = (tonsByUpload[r.upload_id]||0) + (r.weight_kg||0)/1000; });
+  sbRiskSeries = uploads.map(u=>({ reportDate:u.report_date, tons: tonsByUpload[u.id]||0 }));
+}
 
 /* ---------- weeks ---------- */
 async function loadWeeksList(){
@@ -598,6 +616,7 @@ function renderEntryForm(){
   box.innerHTML = FIELD_GROUPS.map(g=>{
     const fields = g.fields.map(f=>
       '<div class="entry-field"><label for="f_'+f.key+'">'+f.label+' <span style="opacity:.6;">('+f.unit+')</span></label>'
+      + (f.dept?'<span class="dept-tag field-dept">'+f.dept+'</span>':'')
       + '<input type="number" step="any" id="f_'+f.key+'" data-key="'+f.key+'" value="'+(currentValues[f.key]!==undefined && currentValues[f.key]!==null ? currentValues[f.key] : '')+'"></div>'
     ).join('');
     return '<div class="entry-group"><h3>'+g.title+'</h3><div class="entry-grid">'+fields+'</div></div>';
@@ -738,7 +757,7 @@ function diagnoseNewFunnel(product){
 // сигналов (план/факт по выручке, пороги доли парка в ремонте, провал конверсии в воронке,
 // рост себестоимости и снижение утилизации к прошлой неделе). Никаких новых порогов не
 // придумываю — только то, что уже определено в остальном дашборде.
-const ALERT_KIND_PRIORITY = {revenue:0, repair:1, funnel:2, cost:3, utilization:4};
+const ALERT_KIND_PRIORITY = {revenue:0, risk:1, repair:2, funnel:3, cost:4, utilization:5};
 function computeWeekAlerts(){
   const alerts = [];
   PRODUCTS.forEach(p=>{
@@ -749,6 +768,14 @@ function computeWeekAlerts(){
         action:()=>showLevel2('rev_'+p.key)});
     }
   });
+  if(sbRiskSeries.length>1){
+    const latest = sbRiskSeries[sbRiskSeries.length-1], prev = sbRiskSeries[sbRiskSeries.length-2];
+    if(latest.tons>prev.tons){
+      alerts.push({kind:'risk', severity:'warn',
+        text:'Тоннаж в просрочке 29+ вырос на '+fmtNum(latest.tons-prev.tons,'т')+' к прошлой выгрузке СБ.',
+        action:()=>showLevel2('risk_tons')});
+    }
+  }
   PRODUCTS.forEach(p=>{
     const share = computeRepairShare(p.key);
     if(share.status==='warn' || share.status==='crit'){
@@ -885,6 +912,16 @@ function renderTiles(){
     h += '<div class="tile wide '+statusClass+'" data-tile="turn_'+p.key+'"><div class="label">Грузооборот — '+p.label+', '+p.unit+'</div><div class="rows">'+rows+'</div></div>';
   });
 
+  if(sbRiskSeries.length){
+    const latest = sbRiskSeries[sbRiskSeries.length-1];
+    const prev = sbRiskSeries.length>1 ? sbRiskSeries[sbRiskSeries.length-2] : null;
+    const grew = prev && latest.tons>prev.tons;
+    const spark = sparklineSvg(sbRiskSeries.map(s=>s.tons));
+    h += tileHtml('risk_tons', 'Тоннаж в просрочке 29+',
+      fmtNum(latest.tons,'т'), 'по выгрузке СБ от '+fmtDateShort(latest.reportDate),
+      null, '', grew?'status-warn':'', spark?'<div class="spark">'+spark+'</div>':'');
+  }
+
   grid.innerHTML = h;
   grid.querySelectorAll('[data-tile]').forEach(el=>{
     el.addEventListener('click', ()=> showLevel2(el.dataset.tile));
@@ -903,7 +940,8 @@ const TILE_TITLES = {
   cost_opalubka: 'Разбор — Себестоимость операции · опалубка',
   cost_bytovki: 'Разбор — Себестоимость операции · бытовки',
   turn_opalubka: 'Грузооборот и парк — опалубка',
-  turn_bytovki: 'Грузооборот и парк — бытовки'
+  turn_bytovki: 'Грузооборот и парк — бытовки',
+  risk_tons: 'Разбор — Тоннаж в просрочке 29+'
 };
 let openFunnelProduct = null;
 function showLevel1(){
@@ -1048,6 +1086,20 @@ function renderDrilldown(){
     h += chartCard('Доля парка в ремонте', [
       {label:'% парка в ремонте', color:'var(--accent)', values: seriesFor(get=>computeRepairShare(product,get).pct)}
     ], {thresholds:[{value:REPAIR_SHARE_WARN,label:'норма ≤'+REPAIR_SHARE_WARN+'%'},{value:REPAIR_SHARE_CRIT,label:'критично >'+REPAIR_SHARE_CRIT+'%'}], zeroFloor:true, fmtAxis:v=>(Math.round(v*10)/10)+'%', ariaLabel:'Динамика доли парка в ремонте по неделям'});
+  } else if(openTileKey==='risk_tons'){
+    if(!sbRiskSeries.length){
+      h += '<p class="note">В СБ-инструменте ещё нет ни одной выгрузки.</p>';
+    } else {
+      h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Выгрузка</th><th>Тоннаж в просрочке 29+</th></tr></thead><tbody>';
+      sbRiskSeries.slice().reverse().forEach(s=>{
+        h += '<tr><td>'+fmtDateShort(s.reportDate)+'</td><td class="num">'+fmtNum(s.tons,'т')+'</td></tr>';
+      });
+      h += '</tbody></table></div>';
+      h += chartCard('Динамика по выгрузкам', [
+        {label:'Тоннаж, т', color:'var(--accent)', values: sbRiskSeries.map(s=>({label:fmtDateShort(s.reportDate), value:s.tons}))}
+      ], {fmtAxis:v=>nf0.format(Math.round(v)), ariaLabel:'Динамика тоннажа в просрочке 29+ по выгрузкам'});
+    }
+    h += '<p class="note" style="margin-top:8px;">Тоннаж по контрагентам, у которых просрочка 29+ дней (данные из выгрузки 1С в СБ-инструменте, без корректировок по действиям/погашениям) — детализация по конкретным контрагентам там же: <a href="https://alexxelagrok4-dot.github.io/sb-debt-dynamics/" target="_blank" rel="noopener">sb-debt-dynamics</a>.</p>';
   } else {
     h += '<p class="note">Разбор по этой плитке появится, когда подключим соответствующую детализацию.</p>';
   }
