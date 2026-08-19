@@ -95,6 +95,9 @@ input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline
 .auth-actions .btn{flex:1;}
 .userbar{display:flex;justify-content:flex-end;align-items:center;gap:10px;font-size:12.5px;color:var(--ink-2);margin-bottom:8px;}
 .userbar .email{font-family:var(--font-mono);}
+.role-badge{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--accent-2);background:var(--surface-2);border:1px solid var(--border);border-radius:99px;padding:3px 9px;}
+.entry-field.locked{opacity:.45;}
+.entry-field.locked input{cursor:not-allowed;}
 
 /* KPI tiles */
 .tile-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
@@ -104,6 +107,7 @@ input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline
 .tile.status-ok::before{background:var(--good);opacity:.8;}
 .tile.status-warn::before{background:var(--warning);opacity:.9;}
 .tile.status-crit::before{background:var(--critical);opacity:1;}
+.tile.marketing::before{background:var(--accent-2);opacity:.85;}
 .tile::after{content:"›";position:absolute;top:9px;right:13px;font-family:var(--font-display);font-size:20px;line-height:1;font-weight:700;color:var(--ink-muted);opacity:.5;transition:color .12s, opacity .12s, transform .12s;}
 .tile:hover{border-color:var(--border-strong);box-shadow:var(--shadow), 0 0 0 1px var(--accent);transform:translateY(-1px);}
 .tile:hover::after{color:var(--accent);opacity:1;transform:translateX(2px);}
@@ -124,6 +128,20 @@ input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline
 .back-btn:hover{filter:brightness(1.08);background:var(--accent);}
 .back-btn-secondary{background:var(--surface-2);color:var(--ink-2);font-size:12px;padding:7px 13px;}
 .drilldown{margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.split-cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;}
+@media (max-width:900px){.split-cols{grid-template-columns:1fr;}}
+.col-title{font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--ink);margin:0 0 10px;}
+.stock-bar{display:flex;height:22px;border-radius:6px;overflow:hidden;background:var(--surface-2);margin-bottom:10px;}
+.stock-seg{height:100%;}
+.stock-legend{display:flex;flex-direction:column;gap:6px;}
+.stock-row{display:flex;align-items:center;gap:8px;font-size:12.5px;}
+.stock-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
+.stock-name{flex:1;color:var(--ink-2);}
+.stock-val{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--ink);}
+.tab-bar{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:14px;}
+.tab-btn{appearance:none;border:none;background:none;color:var(--ink-muted);font:inherit;font-weight:600;font-size:12.5px;padding:9px 4px;margin-right:18px;cursor:pointer;border-bottom:2px solid transparent;}
+.tab-btn:hover{color:var(--ink-2);}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
 .table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);}
 table.dyn{border-collapse:collapse;width:100%;font-size:12.5px;}
 table.dyn th,table.dyn td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;}
@@ -202,6 +220,7 @@ tr.clickable-row:hover .row-link{text-decoration:underline;}
   <header class="top">
     <div class="userbar">
       <span class="email" id="userEmail"></span>
+      <span class="role-badge" id="userRoleBadge"></span>
       <button class="btn" id="signOutBtn">Выйти</button>
     </div>
     <h1>Дашборд руководства</h1>
@@ -271,6 +290,25 @@ function loginToEmail(login){ return login.trim().toLowerCase().replace(/[^a-z0-
 function emailToLogin(email){ return (email||'').split('@')[0]; }
 const LOGIN_PATTERN = /^[a-z0-9_.-]{3,}$/i;
 
+/* ---------- роли: у каждой службы свой логин, видит форму ввода целиком, но может
+   менять только свои поля. Проверка на стороне клиента (как ADMIN_LOGINS в СБ-инструменте) —
+   это внутренний доверенный инструмент, не защита от злоумышленника с теми же кредами;
+   если понадобится настоящая изоляция на уровне БД, потребуется RLS-политика с таблицей
+   ролей, это отдельная задача. Логин с незнакомым именем получает полный доступ — чтобы
+   существующий общий логин не сломался при включении ролей. */
+const ADMIN_LOGINS = ['alexxela'];
+const LOGIN_ROLES = {
+  sales: 'Продажи',
+  marketing: 'Маркетинг',
+  logistics: 'Логистика/Склад',
+  repair: 'Ремонт',
+  security: 'Безопасность',
+  commercial: 'Коммерческий директор'
+};
+function roleBucket(dept){ return (dept||'').replace(/\s*\(.*\)$/,''); }
+let currentUserLogin = null;
+let currentUserRole = null; // null = полный доступ (admin или незнакомый логин), иначе строка роли
+
 const nf0 = new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0});
 const nf1 = new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1});
 function fmtRub(v){ return (v===null||v===undefined||!isFinite(v)) ? '—' : nf0.format(Math.round(v))+' ₽'; }
@@ -310,13 +348,15 @@ const REPAIR_SHARE_WARN = 3, REPAIR_SHARE_CRIT = 5;
 // "Дерево причин низкой утилизации": спрос = лиды/сегмент, продажи = конверсия лид→КП→заказ).
 // Для повторных/продлений и взыскания своя причинная модель — retention и СБ-инструмент
 // соответственно, не воронка лидов; строить для них то же самое было бы неверно по сути.
+// Начинается сразу с квалифицированных лидов (маркетинг уже отсеял мусорные обращения) —
+// сырые "все обращения" не несут управленческой ценности сами по себе, только затраты на них.
 const NEW_FUNNEL_STAGES = [
-  {key:'leads', label:'Лиды', dept:'Маркетинг'},
-  {key:'target_leads', label:'Целевые лиды', dept:'Маркетинг'},
+  {key:'qualified', label:'Квалифицированные лиды', dept:'Маркетинг'},
   {key:'proposals', label:'КП отправлено', dept:'Продажи'},
   {key:'orders', label:'Заказы (сделки)', dept:'Продажи'}
 ];
 function newFunnelKey(product, stage){ return 'newfunnel_'+stage+'_'+product; }
+function marketingSpendKey(product){ return 'marketing_spend_'+product; }
 
 function revKey(product, stream, kind){ return 'rev_'+product+'_'+stream+'_'+kind; }
 function utilKey(product, kind){ return 'util_'+product+'_'+kind; }
@@ -326,6 +366,7 @@ function laborFotKey(product, stage){ return 'labor_fot_'+stage+'_'+product; }
 function normKey(product, stage){ return 'norm_'+stage+'_'+product; }
 function repairStockKey(product){ return 'repair_stock_'+product; }
 function fleetTotalKey(product){ return 'fleet_total_'+product; }
+function atClientStockKey(product){ return 'at_client_stock_'+product; }
 
 // Список всех вводимых полей — генерируется из справочников выше, а не пишется руками.
 function buildFieldGroups(){
@@ -340,7 +381,8 @@ function buildFieldGroups(){
   });
   PRODUCTS.forEach(p=>{
     const fields = NEW_FUNNEL_STAGES.map(s=>({key:newFunnelKey(p.key,s.key), label:s.label, unit:'шт', dept:s.dept}));
-    groups.push({title:'Воронка «Новые клиенты» · '+p.label, fields});
+    fields.push({key:marketingSpendKey(p.key), label:'Затраты на маркетинг за неделю', unit:'₽', dept:'Маркетинг'});
+    groups.push({title:'Воронка «Новые клиенты» и маркетинг · '+p.label, fields});
   });
   PRODUCTS.forEach(p=>{
     groups.push({title:'Утилизация · '+p.label, fields:[
@@ -350,6 +392,7 @@ function buildFieldGroups(){
   });
   PRODUCTS.forEach(p=>{
     const fields = TURNOVER_STAGES.map(t=>({key:turnKey(p.key,t.key), label:t.label, unit:p.unit, dept:t.dept}));
+    fields.push({key:atClientStockKey(p.key), label:'Сейчас у клиента (в аренде)', unit:p.unit, dept:'Логистика/Склад'});
     fields.push({key:repairStockKey(p.key), label:'Сейчас в ремонте (остаток)', unit:p.unit, dept:'Ремонт'});
     fields.push({key:fleetTotalKey(p.key), label:'Общий парк', unit:p.unit, dept:'Логистика/Склад'});
     groups.push({title:'Грузооборот и парк · '+p.label, fields});
@@ -480,6 +523,50 @@ function svgTrendChart(lines, opts){
   svg += '</svg>';
   return svg;
 }
+// Столбцовая диаграмма для факт/план и подобных парных сравнений за период — в отличие
+// от линии, не подразумевает непрерывного перехода между неделями (плана "между" двумя
+// точками не существует), поэтому шкала всегда от нуля, без запаса снизу.
+function svgGroupedBarChart(lines, opts){
+  opts = opts || {};
+  const n = lines[0].values.length;
+  if(n<1) return '<p class="note">Нет данных для графика.</p>';
+  const W=680,H=210,padL=50,padR=14,padT=14,padB=28;
+  const innerW=W-padL-padR, innerH=H-padT-padB;
+  const allVals = lines.flatMap(l=>l.values.map(v=>v.value)).filter(v=>v!==null&&isFinite(v));
+  if(!allVals.length) return '<p class="note">Нет данных для графика.</p>';
+  let max = Math.max(...allVals, 0);
+  if(max===0) max = 1;
+  const scaleMax = max*1.15;
+  const yAt = v => padT + innerH - (v/scaleMax)*innerH;
+  const fmtAxis = opts.fmtAxis || (v=>Math.round(v));
+  const groupW = innerW/n;
+  const barGap = groupW*0.16;
+  const barW = (groupW-barGap*2)/lines.length;
+  const baseY = yAt(0);
+
+  let svg = '<svg class="trend-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+(opts.ariaLabel||'Показатель по периодам')+'">';
+  const steps=4;
+  for(let s=0;s<=steps;s++){
+    const v = scaleMax*s/steps;
+    const y = yAt(v);
+    svg += '<line class="gridline" x1="'+padL+'" y1="'+y.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+y.toFixed(1)+'"/>';
+    svg += '<text x="'+(padL-8)+'" y="'+(y+3).toFixed(1)+'" text-anchor="end" font-size="9.5">'+fmtAxis(v)+'</text>';
+  }
+  lines[0].values.forEach((pt,i)=>{
+    const gx = padL + groupW*i;
+    svg += '<text x="'+(gx+groupW/2).toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle" font-size="9.5">'+pt.label+'</text>';
+    lines.forEach((line,li)=>{
+      const v = line.values[i].value;
+      if(v===null||!isFinite(v)) return;
+      const bx = gx+barGap+li*barW;
+      const by = yAt(v);
+      const bh = Math.max(baseY-by,0);
+      svg += '<rect x="'+bx.toFixed(1)+'" y="'+by.toFixed(1)+'" width="'+(barW*0.86).toFixed(1)+'" height="'+bh.toFixed(1)+'" fill="'+line.color+'" rx="2"/>';
+    });
+  });
+  svg += '</svg>';
+  return svg;
+}
 function chartLegend(lines, thresholds){
   let h = '<div class="chart-legend">';
   lines.forEach(l=>{ h += '<span class="item"><span class="dot" style="background:'+l.color+';"></span>'+l.label+'</span>'; });
@@ -491,7 +578,7 @@ function chartCard(title, lines, opts){
   opts = opts || {};
   return '<div class="chart-card"><h3>'+title+'</h3>'
     + chartLegend(lines, opts.thresholds)
-    + svgTrendChart(lines, opts)
+    + (opts.barChart ? svgGroupedBarChart(lines, opts) : svgTrendChart(lines, opts))
     + '</div>';
 }
 
@@ -525,7 +612,10 @@ sb.auth.onAuthStateChange((event, session)=>{
   if(session){
     authScreen.style.display='none';
     appRoot.style.display='block';
-    userEmailEl.textContent = emailToLogin(session.user.email);
+    currentUserLogin = emailToLogin(session.user.email);
+    userEmailEl.textContent = currentUserLogin;
+    currentUserRole = ADMIN_LOGINS.includes(currentUserLogin) ? null : (LOGIN_ROLES[currentUserLogin] || null);
+    document.getElementById('userRoleBadge').textContent = currentUserRole ? ('Служба: '+currentUserRole) : 'Администратор';
     loadWeeksList();
     loadSbRiskSeries();
   } else {
@@ -614,14 +704,15 @@ async function openWeek(weekId){
 function renderEntryForm(){
   const box = document.getElementById('entryForm');
   box.innerHTML = FIELD_GROUPS.map(g=>{
-    const fields = g.fields.map(f=>
-      '<div class="entry-field"><label for="f_'+f.key+'">'+f.label+' <span style="opacity:.6;">('+f.unit+')</span></label>'
+    const fields = g.fields.map(f=>{
+      const locked = currentUserRole && roleBucket(f.dept)!==currentUserRole;
+      return '<div class="entry-field'+(locked?' locked':'')+'"><label for="f_'+f.key+'">'+f.label+' <span style="opacity:.6;">('+f.unit+')</span></label>'
       + (f.dept?'<span class="dept-tag field-dept">'+f.dept+'</span>':'')
-      + '<input type="number" step="any" id="f_'+f.key+'" data-key="'+f.key+'" value="'+(currentValues[f.key]!==undefined && currentValues[f.key]!==null ? currentValues[f.key] : '')+'"></div>'
-    ).join('');
+      + '<input type="number" step="any" id="f_'+f.key+'" data-key="'+f.key+'"'+(locked?' disabled title="Заполняет служба: '+f.dept+'"':'')+' value="'+(currentValues[f.key]!==undefined && currentValues[f.key]!==null ? currentValues[f.key] : '')+'"></div>';
+    }).join('');
     return '<div class="entry-group"><h3>'+g.title+'</h3><div class="entry-grid">'+fields+'</div></div>';
   }).join('');
-  box.querySelectorAll('input[data-key]').forEach(inp=>{
+  box.querySelectorAll('input[data-key]:not([disabled])').forEach(inp=>{
     inp.addEventListener('input', ()=>{ currentValues[inp.dataset.key] = inp.value===''?null:Number(inp.value); renderTiles(); });
   });
 }
@@ -675,6 +766,41 @@ function computeUtilizationGap(product, get){
   const repairLossEst = (stock!==null) ? stock*7 : null;
   const demandGap = (gap!==null && repairLossEst!==null) ? gap-repairLossEst : null;
   return Object.assign({}, ut, {gap, repairLossEst, demandGap});
+}
+// Где физически находится парк прямо сейчас: у клиента / в ремонте / на складе (остаток).
+// Склад — не вводится, а считается остатком: общий парк минус то, что учтено в двух
+// других местах. Если сумма превышает парк (нестыковка вводимых чисел), это видно как
+// отрицательный "склад" — честно показываем, а не маскируем.
+function computeUtilizationBreakdown(product, get){
+  get = get || num;
+  const atClient = get(atClientStockKey(product));
+  const repair = get(repairStockKey(product));
+  const fleet = get(fleetTotalKey(product));
+  const warehouse = (atClient!==null && repair!==null && fleet!==null) ? fleet-atClient-repair : null;
+  const pct = v => (v!==null && fleet) ? v/fleet*100 : null;
+  return {atClient, repair, warehouse, fleet, pctAtClient:pct(atClient), pctRepair:pct(repair), pctWarehouse:pct(warehouse)};
+}
+function renderStockBreakdownBar(bd, unit){
+  if(bd.fleet===null || !bd.fleet) return '<p class="note">Нет данных о парке для расшифровки.</p>';
+  const segs = [
+    {label:'У клиента', value:bd.atClient, pct:bd.pctAtClient, color:'var(--accent)'},
+    {label:'В ремонте', value:bd.repair, pct:bd.pctRepair, color:'var(--warning)'},
+    {label:'На складе', value:bd.warehouse, pct:bd.pctWarehouse, color:'var(--accent-2)'}
+  ];
+  let bar = '<div class="stock-bar">';
+  segs.forEach(s=>{
+    const w = s.pct!==null ? Math.max(s.pct,0) : 0;
+    bar += '<div class="stock-seg" style="width:'+w.toFixed(1)+'%;background:'+s.color+';" title="'+s.label+': '+fmtPct(s.pct)+'"></div>';
+  });
+  bar += '</div><div class="stock-legend">';
+  segs.forEach(s=>{
+    bar += '<div class="stock-row"><span class="stock-dot" style="background:'+s.color+';"></span><span class="stock-name">'+s.label+'</span><span class="stock-val">'+fmtNum(s.value,unit)+' · '+fmtPct(s.pct)+'</span></div>';
+  });
+  bar += '</div>';
+  if(bd.warehouse!==null && bd.warehouse<0){
+    bar += '<p class="note" style="margin-top:8px;color:var(--critical);">У клиента + в ремонте больше общего парка — проверьте введённые числа за эту неделю.</p>';
+  }
+  return bar;
 }
 function computeTurnover(product, get){
   get = get || num;
@@ -731,6 +857,15 @@ function computeNewFunnel(product, get){
   const first = stages[0].value, last = stages[stages.length-1].value;
   const overallPct = first ? (last!==null?last/first*100:null) : null;
   return {stages, conversions, overallPct};
+}
+// Маркетинг как отдельная панель: квалифицированные лиды и стоимость одного —
+// не часть цепочки конверсии (это не "этап", а цена входа в неё), поэтому отдельная функция.
+function computeMarketing(product, get){
+  get = get || num;
+  const qualified = get(newFunnelKey(product,'qualified'));
+  const spend = get(marketingSpendKey(product));
+  const costPerLead = (spend!==null && qualified) ? spend/qualified : null;
+  return {qualified, spend, costPerLead};
 }
 // Предыдущая сохранённая неделя (по дате, не по выбору в "Сравнить с периодом") — диагноз
 // "что изменилось с прошлой недели" должен работать всегда, не только когда пользователь
@@ -793,7 +928,7 @@ function computeWeekAlerts(){
         const c = diag.cur.conversions[worstIdx];
         alerts.push({kind:'funnel', severity:'warn',
           text:'Воронка «Новые» — <strong>'+p.label+'</strong>: конверсия «'+c.from.label+' → '+c.to.label+'» просела на '+nf1.format(Math.abs(worstVal))+' п.п. ('+c.to.dept+').',
-          action:()=>showLevel3(p.key)});
+          action:()=>showLevel3(p.key,'new','funnel')});
       }
     }
   });
@@ -878,6 +1013,17 @@ function renderTiles(){
   });
 
   PRODUCTS.forEach(p=>{
+    const mk = computeMarketing(p.key);
+    const spark = sparklineFor(get=>computeMarketing(p.key,get).qualified);
+    h += '<div class="tile marketing" data-marketing="'+p.key+'">'
+      + '<div class="label">Маркетинг — '+p.label+'</div>'
+      + '<div class="value">'+fmtNum(mk.qualified)+' / '+fmtRub(mk.costPerLead)+'</div>'
+      + '<div class="sub">квалиф. лиды / ₽ за лид</div>'
+      + spark
+      + '</div>';
+  });
+
+  PRODUCTS.forEach(p=>{
     const ut = computeUtilization(p.key), utWas = computeUtilization(p.key, numWas);
     const spark = sparklineFor(get=>computeUtilization(p.key,get).pct);
     h += tileHtml('util_'+p.key, 'Утилизация — '+p.label,
@@ -926,6 +1072,9 @@ function renderTiles(){
   grid.querySelectorAll('[data-tile]').forEach(el=>{
     el.addEventListener('click', ()=> showLevel2(el.dataset.tile));
   });
+  grid.querySelectorAll('[data-marketing]').forEach(el=>{
+    el.addEventListener('click', ()=> showLevel3(el.dataset.marketing,'new','funnel'));
+  });
 }
 
 /* ---------- навигация между экранами: клик по плитке переводит на отдельный
@@ -943,7 +1092,22 @@ const TILE_TITLES = {
   turn_bytovki: 'Грузооборот и парк — бытовки',
   risk_tons: 'Разбор — Тоннаж в просрочке 29+'
 };
-let openFunnelProduct = null;
+let openStreamProduct = null;
+let openStreamKey = null; // 'new' | 'repeat' | 'renewal'
+let level3Tab = 'funnel'; // 'funnel' | 'clients'
+let clientBreakdownCache = {}; // `${weekId}|${product}|${streamKey}` -> rows
+function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// Клиентская разбивка потока — читается из отдельной таблицы, которую пока никто не
+// заполняет вручную (это была бы заметная еженедельная нагрузка); функциональность готова
+// принять данные, как только появится автоматическая выгрузка из 1С — см. README.
+async function loadClientBreakdown(weekId, product, streamKey){
+  const cacheKey = weekId+'|'+product+'|'+streamKey;
+  if(clientBreakdownCache[cacheKey]) return clientBreakdownCache[cacheKey];
+  const { data } = await sb.from('dash_client_breakdown').select('client_name,amount').eq('week_id',weekId).eq('product',product).eq('stream',streamKey).order('amount',{ascending:false});
+  const rows = data||[];
+  clientBreakdownCache[cacheKey] = rows;
+  return rows;
+}
 function showLevel1(){
   openTileKey = null;
   document.getElementById('level2Screen').style.display='none';
@@ -963,13 +1127,16 @@ function showLevel2(key){
   renderDrilldown();
   document.getElementById('level2Screen').scrollIntoView({behavior:'smooth', block:'start'});
 }
-function showLevel3(product){
-  openFunnelProduct = product;
+function showLevel3(product, streamKey, tab){
+  openStreamProduct = product;
+  openStreamKey = streamKey;
+  level3Tab = tab || (streamKey==='new' ? 'funnel' : 'clients');
   // Открыть можно и напрямую с плитки "На что смотреть" (минуя уровень 2) — фиксируем
   // openTileKey здесь же, иначе кнопка "к разбору выручки" не будет знать, куда вести.
   openTileKey = 'rev_'+product;
   const p = PRODUCTS.find(x=>x.key===product);
-  document.getElementById('level3Title').textContent = 'Воронка «Новые клиенты» — '+p.label;
+  const streamMeta = REVENUE_STREAMS.find(s=>s.key===streamKey);
+  document.getElementById('level3Title').textContent = streamMeta.label+' — '+p.label;
   document.getElementById('level2Screen').style.display='none';
   document.getElementById('alertStripCard').style.display='none';
   document.getElementById('level3Screen').style.display='block';
@@ -993,8 +1160,9 @@ function renderDrilldown(){
     rows.forEach(r=>{
       const plan=r.plan, fact=r.fact, delta=(plan!==null&&fact!==null)?fact-plan:null;
       const met = delta!==null && delta>=0;
-      const drillable = r.stream.key==='new';
-      h += '<tr'+(drillable?' class="clickable-row" data-funnel-product="'+product+'"':'')+'><td>'+r.stream.label+(drillable?' <span class="row-link">открыть воронку ›</span>':'')+'</td><td>'+r.stream.dept+'</td>'
+      const drillable = r.stream.key!=='collection';
+      const linkText = r.stream.key==='new' ? 'открыть воронку ›' : 'детализация ›';
+      h += '<tr'+(drillable?' class="clickable-row" data-stream-product="'+product+'" data-stream-key="'+r.stream.key+'"':'')+'><td>'+r.stream.label+(drillable?' <span class="row-link">'+linkText+'</span>':'')+'</td><td>'+r.stream.dept+'</td>'
         + '<td class="num">'+fmtRub(plan)+'</td><td class="num">'+fmtRub(fact)+'</td>'
         + '<td class="num">'+(delta===null?'—':(delta>0?'+':'')+fmtRub(delta))+'</td>'
         + '<td>'+(delta===null?'—':'<span class="badge '+(met?'ok':'miss')+'">'+(met?'план выполнен':'план не выполнен')+'</span>')+'</td></tr>';
@@ -1002,7 +1170,7 @@ function renderDrilldown(){
     h += '<tr style="font-weight:700;"><td>Итого</td><td>—</td><td class="num">'+fmtRub(planTotal)+'</td><td class="num">'+fmtRub(factTotal)+'</td>'
       + '<td class="num">'+fmtRub(factTotal-planTotal)+'</td><td></td></tr>';
     h += '</tbody></table></div>';
-    h += '<p class="note" style="margin-top:8px;">«Новые клиенты» кликабельны — открывает воронку лид → целевой лид → КП → заказ и показывает, на каком переходе провал. «Собрано по долгу» — разбор по конкретным контрагентам в инструменте СБ: <a href="https://alexxelagrok4-dot.github.io/sb-debt-dynamics/" target="_blank" rel="noopener">sb-debt-dynamics</a>.</p>';
+    h += '<p class="note" style="margin-top:8px;">«Новые клиенты» открывает воронку лид → КП → заказ и показывает, на каком переходе провал. «Повторные»/«Продления» открывают разбивку по клиентам (пока пусто — источник 1С не подключен, ручной ввод намеренно не делаем). «Собрано по долгу» — разбор по конкретным контрагентам в инструменте СБ: <a href="https://alexxelagrok4-dot.github.io/sb-debt-dynamics/" target="_blank" rel="noopener">sb-debt-dynamics</a>.</p>';
     if(compareValues!==null){
       const was = computeRevenue(product, numWas);
       const d = factTotal-was.factTotal;
@@ -1010,25 +1178,28 @@ function renderDrilldown(){
     }
     h += chartCard('Динамика по неделям', [
       {label:'Факт', color:'var(--accent)', values: seriesFor(get=>computeRevenue(product,get).factTotal)},
-      {label:'План', color:'var(--ink-muted)', values: seriesFor(get=>computeRevenue(product,get).planTotal)}
-    ], {fmtAxis:v=>nf0.format(Math.round(v)), ariaLabel:'Динамика выручки по неделям, факт и план'});
+      {label:'План', color:'var(--accent-2)', values: seriesFor(get=>computeRevenue(product,get).planTotal)}
+    ], {barChart:true, fmtAxis:v=>nf0.format(Math.round(v)), ariaLabel:'Выручка по неделям, факт и план'});
   } else if(openTileKey==='util_opalubka' || openTileKey==='util_bytovki'){
+    const bd = computeUtilizationBreakdown(product);
     const gapData = computeUtilizationGap(product);
-    if(gapData.gap===null || gapData.gap<=0){
-      h += '<p class="note">Гэп между потенциалом и оплаченными '+p.unit+'-днями не заполнен или отсутствует — план утилизации выполнен.</p>';
-    } else {
+    let leftHtml = '<h3 class="col-title">Расшифровка: где сейчас парк</h3>' + renderStockBreakdownBar(bd, p.unit);
+    if(gapData.gap!==null && gapData.gap>0){
       const repairShare = gapData.repairLossEst!==null ? Math.min(gapData.repairLossEst, gapData.gap) : null;
       const otherShare = repairShare!==null ? Math.max(gapData.gap-repairShare,0) : null;
-      h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Из чего складывается недобор</th><th>'+p.unit+'-дни</th><th>Служба</th></tr></thead><tbody>'
-        + '<tr><td>Простой из-за ремонта (остаток в ремонте × 7 дней, оценка)</td><td class="num">'+fmtNum(repairShare,p.unit+'-дн')+'</td><td>Ремонт/приёмка</td></tr>'
-        + '<tr class="clickable-row" data-funnel-product="'+product+'"><td>Не арендовано при готовности — дефицит спроса или слабая конверсия <span class="row-link">открыть воронку ›</span></td><td class="num">'+fmtNum(otherShare,p.unit+'-дн')+'</td><td>Маркетинг / Продажи</td></tr>'
-        + '<tr style="font-weight:700;"><td>Итого недобор</td><td class="num">'+fmtNum(gapData.gap,p.unit+'-дн')+'</td><td></td></tr>'
-        + '</tbody></table></div>';
-      h += '<p class="note" style="margin-top:8px;">Оценка простоя в ремонте приблизительная (остаток на конец недели × 7, а не средний за неделю). Остаток недобора — открывает ту же воронку «Новые клиенты», что и в разборе выручки: чаще всего это тот же дефицит лидов или слабая конверсия продаж, что бьёт и по выручке, и по утилизации одновременно.</p>';
+      leftHtml += '<div class="table-wrap" style="margin-top:16px;"><table class="dyn"><thead><tr><th>Из чего складывается недобор до плана</th><th>'+p.unit+'-дни</th></tr></thead><tbody>'
+        + '<tr><td>Простой из-за ремонта (оценка)</td><td class="num">'+fmtNum(repairShare,p.unit+'-дн')+'</td></tr>'
+        + '<tr class="clickable-row" data-stream-product="'+product+'" data-stream-key="new"><td>Дефицит спроса/конверсии <span class="row-link">открыть воронку ›</span></td><td class="num">'+fmtNum(otherShare,p.unit+'-дн')+'</td></tr>'
+        + '<tr style="font-weight:700;"><td>Итого недобор</td><td class="num">'+fmtNum(gapData.gap,p.unit+'-дн')+'</td></tr>'
+        + '</tbody></table></div>'
+        + '<p class="note" style="margin-top:8px;">Оценка ремонта приблизительная (остаток на конец недели × 7, а не средний за неделю).</p>';
+    } else {
+      leftHtml += '<p class="note" style="margin-top:12px;">План утилизации выполнен — недобора нет.</p>';
     }
-    h += chartCard('Динамика утилизации по неделям', [
+    const rightHtml = chartCard('Динамика утилизации по неделям', [
       {label:'% утилизации', color:'var(--accent)', values: seriesFor(get=>computeUtilization(product,get).pct)}
     ], {fmtAxis:v=>Math.round(v)+'%', ariaLabel:'Динамика утилизации по неделям'});
+    h += '<div class="split-cols"><div>'+leftHtml+'</div><div>'+rightHtml+'</div></div>';
   } else if(openTileKey==='capacity_opalubka' || openTileKey==='capacity_bytovki'){
     h += '<div class="table-wrap"><table class="dyn"><thead><tr><th>Этап</th><th>Человеко-часы</th><th>Норма, '+p.unit+'/чел-час</th><th>План (100% мощности), '+p.unit+'</th><th>Факт, '+p.unit+'</th><th>% загрузки</th></tr></thead><tbody>';
     CAPACITY_STAGES.forEach(st=>{
@@ -1104,16 +1275,44 @@ function renderDrilldown(){
     h += '<p class="note">Разбор по этой плитке появится, когда подключим соответствующую детализацию.</p>';
   }
   box.innerHTML = h;
-  box.querySelectorAll('[data-funnel-product]').forEach(el=>{
-    el.addEventListener('click', ()=> showLevel3(el.dataset.funnelProduct));
+  box.querySelectorAll('[data-stream-product]').forEach(el=>{
+    el.addEventListener('click', ()=> showLevel3(el.dataset.streamProduct, el.dataset.streamKey));
   });
 }
 
 /* ---------- уровень 3: воронка "Новые клиенты" — где именно оборвалось ---------- */
 function renderLevel3(){
   const box = document.getElementById('level3Area');
-  const product = openFunnelProduct;
-  if(!product) return;
+  const product = openStreamProduct, streamKey = openStreamKey;
+  if(!product || !streamKey) return;
+
+  let tabsHtml = '';
+  if(streamKey==='new'){
+    tabsHtml = '<div class="tab-bar">'
+      + '<button class="tab-btn'+(level3Tab==='funnel'?' active':'')+'" data-tab="funnel">Воронка</button>'
+      + '<button class="tab-btn'+(level3Tab==='clients'?' active':'')+'" data-tab="clients">Клиенты</button>'
+      + '</div>';
+  }
+  box.innerHTML = tabsHtml + '<div id="level3TabContent"></div>';
+  box.querySelectorAll('[data-tab]').forEach(el=>{
+    el.addEventListener('click', ()=>{ level3Tab = el.dataset.tab; renderLevel3(); });
+  });
+
+  const content = document.getElementById('level3TabContent');
+  if(level3Tab==='funnel'){
+    content.innerHTML = renderFunnelTabHtml(product);
+  } else {
+    content.innerHTML = '<p class="note">Загрузка…</p>';
+    if(currentWeek){
+      loadClientBreakdown(currentWeek.id, product, streamKey).then(rows=>{
+        if(openStreamProduct!==product || openStreamKey!==streamKey || level3Tab!=='clients') return;
+        content.innerHTML = renderClientsTabHtml(rows);
+      });
+    }
+  }
+}
+
+function renderFunnelTabHtml(product){
   const diag = diagnoseNewFunnel(product);
   const cur = diag.cur;
   let h = '';
@@ -1121,14 +1320,14 @@ function renderLevel3(){
   if(diag.prevWeek){
     let worstIdx = -1, worstVal = 0;
     (diag.convDeltas||[]).forEach((d,i)=>{ if(d!==null && d<worstVal){ worstVal=d; worstIdx=i; } });
-    const leadsDelta = diag.stageDeltas ? diag.stageDeltas[0] : null;
+    const qualifiedDelta = diag.stageDeltas ? diag.stageDeltas[0] : null;
     let msg;
     if(worstIdx>=0){
       const c = cur.conversions[worstIdx];
       msg = 'Сильнее всего просела конверсия «'+c.from.label+' → '+c.to.label+'»: '+(worstVal>0?'+':'')+nf1.format(worstVal)+' п.п. к неделе '+fmtDateShort(diag.prevWeek.week_start)+'.'
         + ' Зона ответственности: <span class="dept-tag">'+c.to.dept+'</span>.';
-    } else if(leadsDelta!==null && leadsDelta<0){
-      msg = 'Конверсии между этапами не просели, но приток лидов упал на '+Math.abs(leadsDelta)+' к неделе '+fmtDateShort(diag.prevWeek.week_start)+'. Зона ответственности: <span class="dept-tag">Маркетинг</span>.';
+    } else if(qualifiedDelta!==null && qualifiedDelta<0){
+      msg = 'Конверсии между этапами не просели, но приток квалифицированных лидов упал на '+Math.abs(qualifiedDelta)+' к неделе '+fmtDateShort(diag.prevWeek.week_start)+'. Зона ответственности: <span class="dept-tag">Маркетинг</span>.';
     } else {
       msg = 'Явного провала на конкретном этапе к прошлой неделе ('+fmtDateShort(diag.prevWeek.week_start)+') не видно — воронка стабильна или улучшилась.';
     }
@@ -1154,24 +1353,40 @@ function renderLevel3(){
     }
     h += '</tr>';
   });
-  h += '<tr style="font-weight:700;"><td>Итого (лиды → заказы)</td><td>—</td><td></td>'+(diag.stageDeltas?'<td></td>':'')+'<td class="num">'+(cur.overallPct!==null?fmtPct(cur.overallPct):'—')+'</td>'+(diag.convDeltas?'<td></td>':'')+'</tr>';
+  h += '<tr style="font-weight:700;"><td>Итого (квалиф. лиды → заказы)</td><td>—</td><td></td>'+(diag.stageDeltas?'<td></td>':'')+'<td class="num">'+(cur.overallPct!==null?fmtPct(cur.overallPct):'—')+'</td>'+(diag.convDeltas?'<td></td>':'')+'</tr>';
   h += '</tbody></table></div>';
 
-  h += chartCard('Маркетинг: лиды и целевые лиды', [
-    {label:'Лиды', color:'var(--accent)', values: seriesFor(get=>get(newFunnelKey(product,'leads')))},
-    {label:'Целевые лиды', color:'var(--accent-2)', values: seriesFor(get=>get(newFunnelKey(product,'target_leads')))}
-  ], {fmtAxis:v=>Math.round(v), ariaLabel:'Динамика лидов и целевых лидов по неделям'});
+  const mk = computeMarketing(product);
+  h += '<div class="table-wrap" style="margin-top:12px;"><table class="dyn"><thead><tr><th>Маркетинг</th><th>Квалиф. лиды</th><th>Затраты за неделю</th><th>₽/лид</th></tr></thead><tbody>'
+    + '<tr><td>'+PRODUCTS.find(x=>x.key===product).label+'</td><td class="num">'+fmtNum(mk.qualified)+'</td><td class="num">'+fmtRub(mk.spend)+'</td><td class="num">'+fmtRub(mk.costPerLead)+'</td></tr>'
+    + '</tbody></table></div>';
+
+  h += chartCard('Маркетинг: квалифицированные лиды', [
+    {label:'Квалифицированные лиды', color:'var(--accent)', values: seriesFor(get=>get(newFunnelKey(product,'qualified')))}
+  ], {fmtAxis:v=>Math.round(v), ariaLabel:'Динамика квалифицированных лидов по неделям'});
   h += chartCard('Продажи: КП и заказы', [
     {label:'КП отправлено', color:'var(--accent)', values: seriesFor(get=>get(newFunnelKey(product,'proposals')))},
     {label:'Заказы', color:'var(--accent-2)', values: seriesFor(get=>get(newFunnelKey(product,'orders')))}
   ], {fmtAxis:v=>Math.round(v), ariaLabel:'Динамика КП и заказов по неделям'});
   h += chartCard('Конверсия по этапам, %', NEW_FUNNEL_STAGES.slice(1).map((s,i)=>({
     label:NEW_FUNNEL_STAGES[i].label+' → '+s.label,
-    color: i===0?'var(--accent)':(i===1?'var(--accent-2)':'var(--chart-3)'),
+    color: i===0?'var(--accent)':'var(--accent-2)',
     values: seriesFor(get=>computeNewFunnel(product,get).conversions[i].pct)
   })), {fmtAxis:v=>Math.round(v)+'%', ariaLabel:'Динамика конверсии по этапам воронки'});
 
-  box.innerHTML = h;
+  return h;
+}
+
+function renderClientsTabHtml(rows){
+  if(!rows.length){
+    return '<p class="note">Разбивка по клиентам появится, когда подключим автоматическую выгрузку из 1С — здесь будет таблица «клиент → сумма» по этому потоку за неделю. Ручной ввод намеренно не делаем (это заметная лишняя нагрузка каждую неделю) — таблица и запрос уже готовы принять данные, как только появится источник.</p>';
+  }
+  const total = rows.reduce((s,r)=>s+(r.amount||0),0);
+  let h = '<div class="table-wrap"><table class="dyn"><thead><tr><th>Клиент</th><th>Сумма</th></tr></thead><tbody>';
+  rows.forEach(r=>{ h += '<tr><td>'+escHtml(r.client_name)+'</td><td class="num">'+fmtRub(r.amount)+'</td></tr>'; });
+  h += '<tr style="font-weight:700;"><td>Итого</td><td class="num">'+fmtRub(total)+'</td></tr>';
+  h += '</tbody></table></div>';
+  return h;
 }
 
 })();
