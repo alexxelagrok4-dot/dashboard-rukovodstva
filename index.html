@@ -117,7 +117,10 @@ input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline
 .tile .value{font-family:var(--font-mono);font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-0.01em;color:var(--ink);}
 .tile .sub{font-size:11px;color:var(--ink-muted);margin-top:4px;}
 .tile .rows{display:flex;flex-direction:column;gap:4px;margin-top:7px;}
-.tile .row{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;font-family:var(--font-mono);color:var(--ink-2);border-top:1px dashed var(--border);padding-top:4px;}
+.tile .row{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-family:var(--font-mono);color:var(--ink-2);border-top:1px dashed var(--border);padding-top:5px;}
+.tile .row span:last-child{font-weight:700;color:var(--ink);}
+.tile .row span.num-pos{color:var(--good);}
+.tile .row span.num-neg{color:var(--critical);}
 .tile .row:first-child{border-top:none;padding-top:0;}
 .tile .spark{margin-top:9px;line-height:0;color:var(--accent);}
 .tile .spark svg{width:100%;height:30px;display:block;}
@@ -442,6 +445,46 @@ function weeksAsc(){ return weeksList.slice().sort((a,b)=> new Date(a.week_start
 function fmtDateShort(dateStr){ return new Date(dateStr).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'}); }
 function seriesFor(valueFn){
   return weeksAsc().map(w=>({ id:w.id, label: fmtDateShort(w.week_start), value: valueFn(getterForWeek(w.id)) }));
+}
+
+/* ---------- месячная динамика: нарастающим итогом с начала месяца + прогноз ----------
+   Недели идентифицируются по дате начала (week_start), календарный месяц берётся от неё
+   же. "Недель в месяце" считается по календарю (сколько понедельников попадает в месяц),
+   а не по факту заведённых dash_weeks — так прогноз не зависит от того, создана ли ещё
+   будущая неделя в приложении. И план, и факт экстраполируются одинаково (среднее за
+   заведённые недели × недель в месяце) — так расчёт работает независимо от того, вводит
+   ли служба план на весь месяц заранее или неделя за неделей по мере наступления. */
+function mondayCountInMonth(year, month0){
+  let count = 0;
+  const d = new Date(year, month0, 1);
+  while(d.getDay()!==1){ d.setDate(d.getDate()+1); }
+  while(d.getMonth()===month0){ count++; d.setDate(d.getDate()+7); }
+  return count;
+}
+function monthLabel(year, month0){
+  return new Date(year, month0, 1).toLocaleDateString('ru-RU',{month:'long',year:'numeric'});
+}
+function computeMonthlyProgress(product, refWeekStart){
+  const ref = new Date(refWeekStart);
+  const year = ref.getFullYear(), month0 = ref.getMonth();
+  const monthWeeks = weeksAsc().filter(w=>{
+    const d = new Date(w.week_start);
+    return d.getFullYear()===year && d.getMonth()===month0;
+  });
+  let planSoFar = 0, factSoFar = 0, weeksWithPlan = 0, weeksWithFact = 0;
+  monthWeeks.forEach(w=>{
+    const rev = computeRevenue(product, getterForWeek(w.id));
+    if(rev.planTotal){ planSoFar += rev.planTotal; weeksWithPlan++; }
+    if(rev.factTotal!==null){ factSoFar += rev.factTotal; weeksWithFact++; }
+  });
+  const weeksTotal = mondayCountInMonth(year, month0);
+  const avgWeeklyFact = weeksWithFact ? factSoFar/weeksWithFact : null;
+  const avgWeeklyPlan = weeksWithPlan ? planSoFar/weeksWithPlan : null;
+  const projectedFact = avgWeeklyFact!==null ? avgWeeklyFact*weeksTotal : null;
+  const projectedPlan = avgWeeklyPlan!==null ? avgWeeklyPlan*weeksTotal : null;
+  const pctSoFar = planSoFar ? factSoFar/planSoFar*100 : null;
+  const projectedPct = projectedPlan ? (projectedFact!==null ? projectedFact/projectedPlan*100 : null) : null;
+  return {label:monthLabel(year,month0), monthWeeks, weeksTotal, weeksWithFact, planSoFar, factSoFar, pctSoFar, projectedFact, projectedPlan, projectedPct};
 }
 
 function sparklineSvg(values){
@@ -977,6 +1020,7 @@ function renderWeekAlerts(){
 }
 
 let openTileKey = null;
+let monthlyPanelOpen = false;
 
 function tileHtml(key, label, valueHtml, subHtml, extraRowsHtml, deltaHtml, statusClass, sparkHtml){
   const active = openTileKey===key;
@@ -1005,11 +1049,14 @@ function renderTiles(){
 
   PRODUCTS.forEach(p=>{
     const rev = computeRevenue(p.key), revWas = computeRevenue(p.key, numWas);
-    const status = (rev.factTotal===null||rev.planTotal===null) ? '' : (rev.factTotal>=rev.planTotal ? 'status-ok' : 'status-crit');
+    const pctOfPlan = (rev.planTotal && rev.factTotal!==null) ? rev.factTotal/rev.planTotal*100 : null;
+    const status = pctOfPlan===null ? '' : (pctOfPlan>=100 ? 'status-ok' : 'status-crit');
     const spark = sparklineFor(get=>computeRevenue(p.key,get).factTotal);
+    const rows = '<div class="row"><span>План</span><span>'+fmtRub(rev.planTotal)+'</span></div>'
+      + '<div class="row"><span>% выполнения</span><span class="'+(pctOfPlan===null?'':(pctOfPlan>=100?'num-pos':'num-neg'))+'">'+fmtPct(pctOfPlan)+'</span></div>';
     h += tileHtml('rev_'+p.key, 'Выручка — '+p.label,
-      fmtRub(rev.factTotal), 'план '+fmtRub(rev.planTotal),
-      null, deltaLine(rev.factTotal, revWas.factTotal, fmtRub), status, spark);
+      fmtRub(rev.factTotal), 'факт за неделю',
+      rows, deltaLine(rev.factTotal, revWas.factTotal, fmtRub), status, spark);
   });
 
   PRODUCTS.forEach(p=>{
@@ -1119,6 +1166,7 @@ function showLevel1(){
 }
 function showLevel2(key){
   openTileKey = key;
+  monthlyPanelOpen = false;
   document.getElementById('level2Title').textContent = TILE_TITLES[key] || 'Разбор';
   document.getElementById('level1Screen').style.display='none';
   document.getElementById('level3Screen').style.display='none';
@@ -1180,6 +1228,8 @@ function renderDrilldown(){
       {label:'Факт', color:'var(--accent)', values: seriesFor(get=>computeRevenue(product,get).factTotal)},
       {label:'План', color:'var(--accent-2)', values: seriesFor(get=>computeRevenue(product,get).planTotal)}
     ], {barChart:true, fmtAxis:v=>nf0.format(Math.round(v)), ariaLabel:'Выручка по неделям, факт и план'});
+    h += '<div style="margin-top:14px;"><button class="btn" id="monthlyToggleBtn">'+(monthlyPanelOpen?'Скрыть месячную динамику':'Месячная динамика ▾')+'</button></div>';
+    if(monthlyPanelOpen) h += renderMonthlyPanel(product);
   } else if(openTileKey==='util_opalubka' || openTileKey==='util_bytovki'){
     const bd = computeUtilizationBreakdown(product);
     const gapData = computeUtilizationGap(product);
@@ -1278,6 +1328,32 @@ function renderDrilldown(){
   box.querySelectorAll('[data-stream-product]').forEach(el=>{
     el.addEventListener('click', ()=> showLevel3(el.dataset.streamProduct, el.dataset.streamKey));
   });
+  const monthlyBtn = box.querySelector('#monthlyToggleBtn');
+  if(monthlyBtn) monthlyBtn.addEventListener('click', ()=>{ monthlyPanelOpen = !monthlyPanelOpen; renderDrilldown(); });
+}
+
+function renderMonthlyPanel(product){
+  if(!currentWeek) return '';
+  const mp = computeMonthlyProgress(product, currentWeek.week_start);
+  let h = '<div class="chart-card" style="margin-top:12px;"><h3>Нарастающим итогом — '+mp.label+'</h3>';
+  h += '<div class="table-wrap"><table class="dyn"><thead><tr><th></th><th>План</th><th>Факт</th><th>% выполнения</th></tr></thead><tbody>';
+  h += '<tr><td>С начала месяца (заведено недель: '+mp.weeksWithFact+' из '+mp.weeksTotal+')</td><td class="num">'+fmtRub(mp.planSoFar)+'</td><td class="num">'+fmtRub(mp.factSoFar)+'</td><td class="num">'+(mp.pctSoFar!==null?fmtPct(mp.pctSoFar):'—')+'</td></tr>';
+  h += '<tr style="font-weight:700;"><td>Прогноз на весь месяц (при текущем темпе)</td><td class="num">'+(mp.projectedPlan!==null?fmtRub(mp.projectedPlan):'—')+'</td><td class="num">'+(mp.projectedFact!==null?fmtRub(mp.projectedFact):'—')+'</td><td class="num">'+(mp.projectedPct!==null?fmtPct(mp.projectedPct):'—')+'</td></tr>';
+  h += '</tbody></table></div>';
+  if(mp.weeksWithFact===0){
+    h += '<p class="note" style="margin-top:8px;">За этот месяц ещё нет ни одной сохранённой недели с фактом — прогноз появится после первой.</p>';
+  } else if(mp.weeksWithFact<mp.weeksTotal){
+    h += '<p class="note" style="margin-top:8px;">Прогноз — экстраполяция среднего темпа за уже заведённые недели (их '+mp.weeksWithFact+' из '+mp.weeksTotal+' в месяце) на весь месяц, не гарантия результата.</p>';
+    h += chartCard('План / Факт / Прогноз за месяц', [
+      {label:'План (введено)', color:'var(--accent-2)', values:[{label:mp.label,value:mp.planSoFar}]},
+      {label:'Факт (введено)', color:'var(--accent)', values:[{label:mp.label,value:mp.factSoFar}]},
+      {label:'Прогноз факта', color:'var(--chart-3)', values:[{label:mp.label,value:mp.projectedFact}]}
+    ], {barChart:true, fmtAxis:v=>nf0.format(Math.round(v)), ariaLabel:'План, факт и прогноз за месяц'});
+  } else {
+    h += '<p class="note" style="margin-top:8px;">Все недели месяца уже заведены — «прогноз» здесь совпадает с итогом месяца.</p>';
+  }
+  h += '</div>';
+  return h;
 }
 
 /* ---------- уровень 3: воронка "Новые клиенты" — где именно оборвалось ---------- */
